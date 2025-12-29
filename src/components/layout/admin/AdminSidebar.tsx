@@ -78,12 +78,9 @@ const navigation: NavItem[] = [
     ],
   },
   {
-    name: "Comms",
+    name: "Messages",
+    href: "/admin/messages",
     icon: <MessageSquare className="h-4 w-4" />,
-    children: [
-      { name: "Messages", href: "/admin/messages" },
-      { name: "Notifications", href: "/admin/notifications" },
-    ],
   },
   {
     name: "Audit & Settings",
