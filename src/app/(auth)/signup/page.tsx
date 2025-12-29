@@ -129,13 +129,13 @@ export default function SignupPage() {
       {/* Right Column - Form Section */}
       <div className="flex flex-col w-full lg:w-[50%] h-full bg-white">
         {/* Mobile Header */}
-        <div className="lg:hidden px-6 py-4 border-b border-gray-200 bg-white">
+        <div className="lg:hidden px-4 py-3 border-b border-gray-200 bg-white">
           <Image
             src="/logos/Logo.svg"
             alt="NoProblem"
-            width={140}
-            height={53}
-            className="h-8 w-auto"
+            width={160}
+            height={61}
+            className="h-14 w-auto"
           />
         </div>
 
