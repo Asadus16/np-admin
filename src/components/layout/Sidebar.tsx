@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -32,11 +33,11 @@ const navigation: NavItem[] = [
   {
     name: "Dashboard",
     href: "/dashboard",
-    icon: <LayoutDashboard size={20} />,
+    icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
     name: "Users",
-    icon: <Users size={20} />,
+    icon: <Users className="h-4 w-4" />,
     children: [
       { name: "All Users", href: "/dashboard/users" },
       { name: "Add User", href: "/dashboard/users/add" },
@@ -44,7 +45,7 @@ const navigation: NavItem[] = [
   },
   {
     name: "Projects",
-    icon: <FolderOpen size={20} />,
+    icon: <FolderOpen className="h-4 w-4" />,
     children: [
       { name: "All Projects", href: "/dashboard/projects" },
       { name: "Add Project", href: "/dashboard/projects/add" },
@@ -53,22 +54,22 @@ const navigation: NavItem[] = [
   {
     name: "Reports",
     href: "/dashboard/reports",
-    icon: <BarChart3 size={20} />,
+    icon: <BarChart3 className="h-4 w-4" />,
   },
   {
     name: "Documents",
     href: "/dashboard/documents",
-    icon: <FileText size={20} />,
+    icon: <FileText className="h-4 w-4" />,
   },
   {
     name: "Messages",
     href: "/dashboard/messages",
-    icon: <Mail size={20} />,
+    icon: <Mail className="h-4 w-4" />,
   },
   {
     name: "Settings",
     href: "/dashboard/settings",
-    icon: <Settings size={20} />,
+    icon: <Settings className="h-4 w-4" />,
   },
 ];
 
@@ -114,109 +115,119 @@ export function Sidebar({ isCollapsed, isMobileOpen, onCloseMobile }: SidebarPro
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-screen bg-[var(--sidebar-bg)]
-          transition-all duration-300 ease-in-out
+          fixed top-0 left-0 z-50 h-screen bg-[#f4f4f6]
+          transition-all duration-300 ease-in-out border-none shadow-none
           ${isCollapsed ? "w-16" : "w-64"}
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
       >
-        <div className="flex items-center justify-between h-14 px-4 border-b border-[var(--border-color)]">
+        {/* Logo */}
+        <div
+          className={`flex h-20 items-center border-none ${
+            isCollapsed ? "px-2 justify-center" : "px-2 sm:px-4"
+          }`}
+        >
           {!isCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">NP</span>
-              </div>
-              <span className="font-semibold text-gray-900">
-                NP Admin
-              </span>
+            <Link href="/dashboard" className="flex items-center">
+              <Image
+                src="/logos/Logo.svg"
+                alt="NoProblem"
+                width={260}
+                height={100}
+                className="h-[70px] w-auto"
+                priority
+              />
             </Link>
           )}
           {isCollapsed && (
-            <div className="w-8 h-8 mx-auto rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">NP</span>
-            </div>
+            <Link href="/dashboard" className="flex items-center justify-center">
+              <Image
+                src="/logos/Logo.svg"
+                alt="NP"
+                width={56}
+                height={56}
+                className="h-12 w-12 object-cover object-left"
+                priority
+              />
+            </Link>
           )}
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-1 rounded hover:bg-[var(--sidebar-active)]"
+            className="lg:hidden p-1 rounded hover:bg-[#DCDCDE] ml-auto"
           >
-            <X size={20} />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <nav className="p-2.5 space-y-1 overflow-y-auto h-[calc(100vh-56px)]">
-          {navigation.map((item) => (
-            <div key={item.name}>
-              {item.href ? (
-                <Link
-                  href={item.href}
-                  onClick={onCloseMobile}
-                  className={`
-                    flex items-center gap-3 px-3 py-2 rounded-[5px] text-sm font-medium
-                    transition-colors duration-150
-                    ${
-                      isActive(item.href)
-                        ? "bg-[var(--sidebar-active)] text-gray-900"
-                        : "text-gray-700 hover:bg-[var(--sidebar-active)]"
-                    }
-                  `}
-                >
-                  <span className="flex-shrink-0">{item.icon}</span>
-                  {!isCollapsed && <span>{item.name}</span>}
-                </Link>
-              ) : (
-                <>
-                  <button
-                    onClick={() => toggleExpand(item.name)}
+        {/* Navigation */}
+        <nav className="px-2" style={{ padding: "10px" }}>
+          <div className="space-y-1">
+            {navigation.map((item) => (
+              <div key={item.name}>
+                {item.href ? (
+                  <Link
+                    href={item.href}
+                    onClick={onCloseMobile}
                     className={`
-                      w-full flex items-center justify-between px-3 py-2 rounded-[5px] text-sm font-medium
-                      transition-colors duration-150
-                      ${
-                        isParentActive(item)
-                          ? "bg-[var(--sidebar-active)] text-gray-900"
-                          : "text-gray-700 hover:bg-[var(--sidebar-active)]"
-                      }
+                      group flex items-center py-2 text-sm font-medium rounded-md transition-colors
+                      text-gray-700 hover:bg-[#DCDCDE] hover:text-gray-900
+                      ${isCollapsed ? "justify-center px-2" : "px-3"}
+                      ${isActive(item.href) ? "bg-[#DCDCDE] text-gray-900" : ""}
                     `}
+                    style={{ borderRadius: "5px" }}
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="flex-shrink-0">{item.icon}</span>
-                      {!isCollapsed && <span>{item.name}</span>}
-                    </div>
-                    {!isCollapsed && (
-                      <ChevronDown
-                        size={16}
-                        className={`transition-transform duration-200 ${
-                          expandedItems.includes(item.name) ? "rotate-180" : ""
-                        }`}
-                      />
+                    <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  </Link>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => toggleExpand(item.name)}
+                      className={`
+                        group flex items-center w-full py-2 text-sm font-medium rounded-md transition-colors
+                        text-gray-700 hover:bg-[#DCDCDE] hover:text-gray-900
+                        ${isCollapsed ? "justify-center px-2" : "px-3"}
+                        ${isParentActive(item) ? "bg-[#DCDCDE] text-gray-900" : ""}
+                      `}
+                      style={{ borderRadius: "5px" }}
+                    >
+                      <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
+                      {!isCollapsed && <span className="truncate">{item.name}</span>}
+                      {!isCollapsed && (
+                        <ChevronDown
+                          className={`ml-auto h-4 w-4 transition-transform ${
+                            expandedItems.includes(item.name) ? "rotate-180" : ""
+                          }`}
+                        />
+                      )}
+                    </button>
+                    {!isCollapsed && expandedItems.includes(item.name) && (
+                      <div className="ml-4 mt-1 space-y-1 border-l border-gray-200 pl-3">
+                        {item.children?.map((child) => (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            onClick={onCloseMobile}
+                            className={`
+                              block px-3 py-1.5 text-sm transition-colors
+                              ${
+                                isActive(child.href)
+                                  ? "bg-[#DCDCDE] text-gray-900"
+                                  : "text-gray-600 hover:text-gray-900 hover:bg-[#DCDCDE]"
+                              }
+                            `}
+                            style={{ borderRadius: "5px" }}
+                          >
+                            {child.name}
+                          </Link>
+                        ))}
+                      </div>
                     )}
-                  </button>
-                  {!isCollapsed && expandedItems.includes(item.name) && (
-                    <div className="mt-1 ml-4 pl-3 border-l border-gray-200 space-y-1">
-                      {item.children?.map((child) => (
-                        <Link
-                          key={child.href}
-                          href={child.href}
-                          onClick={onCloseMobile}
-                          className={`
-                            block px-3 py-2 rounded-[5px] text-sm
-                            transition-colors duration-150
-                            ${
-                              isActive(child.href)
-                                ? "bg-[var(--sidebar-active)] text-gray-900 font-medium"
-                                : "text-gray-600 hover:bg-[var(--sidebar-active)]"
-                            }
-                          `}
-                        >
-                          {child.name}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </nav>
       </aside>
     </>

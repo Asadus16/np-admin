@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -50,31 +51,35 @@ export default function LoginPage() {
   const isFormValid = email && password && !emailError && !passwordError;
 
   return (
-    <div className="h-screen flex flex-col lg:flex-row bg-gray-900 overflow-hidden">
+    <div className="h-screen flex flex-col lg:flex-row bg-white overflow-hidden">
       {/* Left Column - Image Section */}
-      <div className="hidden lg:flex w-[50%] relative overflow-hidden bg-gray-900">
-        <div className="w-full h-full bg-gradient-to-br from-blue-600 to-indigo-800 flex items-center justify-center">
-          <div className="text-center text-white p-8">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-white/10 flex items-center justify-center">
-              <span className="text-4xl font-bold">NP</span>
-            </div>
-            <h2 className="text-3xl font-bold mb-4">NP Admin</h2>
-            <p className="text-lg text-white/70">Manage your dashboard</p>
+      <div className="hidden lg:flex w-[50%] relative overflow-hidden">
+        <div className="w-full h-full bg-[#f4f4f6] flex items-center justify-center">
+          <div className="text-center p-8">
+            <Image
+              src="/logos/Logo.svg"
+              alt="NoProblem"
+              width={273}
+              height={104}
+              className="mx-auto mb-6"
+              priority
+            />
+            <p className="text-lg text-gray-500">Manage your dashboard</p>
           </div>
         </div>
-        <div className="absolute inset-0 bg-black/20"></div>
       </div>
 
       {/* Right Column - Form Section */}
       <div className="flex flex-col w-full lg:w-[50%] h-full bg-white">
         {/* Mobile Header */}
         <div className="lg:hidden px-6 py-4 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">NP</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">NP Admin</span>
-          </div>
+          <Image
+            src="/logos/Logo.svg"
+            alt="NoProblem"
+            width={140}
+            height={53}
+            className="h-8 w-auto"
+          />
         </div>
 
         {/* Form Container */}
@@ -83,11 +88,15 @@ export default function LoginPage() {
             {/* Header Text */}
             <div className="text-left mb-6 sm:mb-8">
               {/* Desktop Logo */}
-              <div className="hidden lg:flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <span className="text-white font-bold">NP</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">NP Admin</span>
+              <div className="hidden lg:block mb-4">
+                <Image
+                  src="/logos/Logo.svg"
+                  alt="NoProblem"
+                  width={180}
+                  height={68}
+                  className="h-12 w-auto"
+                  style={{ marginLeft: "-8px" }}
+                />
               </div>
               <p className="text-lg text-gray-500 mt-4">Please sign in to your account</p>
             </div>
