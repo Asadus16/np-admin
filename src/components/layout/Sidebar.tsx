@@ -6,14 +6,15 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Users,
-  FileText,
-  Settings,
   ChevronDown,
   X,
   FolderOpen,
-  BarChart3,
-  Mail,
+  CreditCard,
+  Receipt,
+  MessageSquare,
+  Shield,
+  Store,
+  Wrench,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -36,40 +37,63 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
-    name: "Users",
-    icon: <Users className="h-4 w-4" />,
-    children: [
-      { name: "All Users", href: "/dashboard/users" },
-      { name: "Add User", href: "/dashboard/users/add" },
-    ],
-  },
-  {
-    name: "Projects",
+    name: "Categories",
     icon: <FolderOpen className="h-4 w-4" />,
     children: [
-      { name: "All Projects", href: "/dashboard/projects" },
-      { name: "Add Project", href: "/dashboard/projects/add" },
+      { name: "All Categories", href: "/dashboard/categories" },
+      { name: "Add Category", href: "/dashboard/categories/add" },
     ],
   },
   {
-    name: "Reports",
-    href: "/dashboard/reports",
-    icon: <BarChart3 className="h-4 w-4" />,
+    name: "Vendors",
+    icon: <Store className="h-4 w-4" />,
+    children: [
+      { name: "Applications", href: "/dashboard/vendors/applications" },
+      { name: "All Vendors", href: "/dashboard/vendors" },
+      { name: "Add Vendor", href: "/dashboard/vendors/add" },
+    ],
   },
   {
-    name: "Documents",
-    href: "/dashboard/documents",
-    icon: <FileText className="h-4 w-4" />,
+    name: "Technicians",
+    icon: <Wrench className="h-4 w-4" />,
+    children: [
+      { name: "All Technicians", href: "/dashboard/technicians" },
+    ],
   },
   {
-    name: "Messages",
-    href: "/dashboard/messages",
-    icon: <Mail className="h-4 w-4" />,
+    name: "Billing & Plans",
+    icon: <CreditCard className="h-4 w-4" />,
+    children: [
+      { name: "Usage & Limits", href: "/dashboard/billing" },
+      { name: "Feature Flags", href: "/dashboard/billing/feature-flags" },
+    ],
   },
   {
-    name: "Settings",
-    href: "/dashboard/settings",
-    icon: <Settings className="h-4 w-4" />,
+    name: "Transactions",
+    icon: <Receipt className="h-4 w-4" />,
+    children: [
+      { name: "Payout Runs", href: "/dashboard/transactions" },
+      { name: "Fees", href: "/dashboard/transactions/fees" },
+      { name: "Adjustments", href: "/dashboard/transactions/adjustments" },
+    ],
+  },
+  {
+    name: "Comms",
+    icon: <MessageSquare className="h-4 w-4" />,
+    children: [
+      { name: "Messages", href: "/dashboard/messages" },
+      { name: "Notifications", href: "/dashboard/notifications" },
+    ],
+  },
+  {
+    name: "Audit & Settings",
+    icon: <Shield className="h-4 w-4" />,
+    children: [
+      { name: "Audit Logs", href: "/dashboard/audit-logs" },
+      { name: "Roles & Permissions", href: "/dashboard/roles" },
+      { name: "Organization", href: "/dashboard/organization" },
+      { name: "Security", href: "/dashboard/security" },
+    ],
   },
 ];
 
