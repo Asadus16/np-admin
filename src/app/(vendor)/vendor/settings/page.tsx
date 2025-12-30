@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Upload, Mail, Phone, Globe, Loader2, AlertCircle } from "lucide-react";
+import { Building2, Upload, Mail, Phone, Globe, Loader2, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { getMyCompany, updateMyCompany, Company, CompanyUpdateData } from "@/lib/company";
 
 interface FormData {
@@ -111,6 +111,33 @@ export default function CompanySettingsPage() {
       </div>
 
       <div className="max-w-2xl">
+        {/* Verification Status Banner */}
+        {company && (
+          <div className={`mb-4 p-4 rounded-lg border flex items-center gap-3 ${
+            company.approved
+              ? "bg-green-50 border-green-200"
+              : "bg-amber-50 border-amber-200"
+          }`}>
+            {company.approved ? (
+              <>
+                <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">Verified Business</p>
+                  <p className="text-xs text-green-600">Your company has been verified and approved</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">Pending Verification</p>
+                  <p className="text-xs text-amber-600">Your company is awaiting admin approval</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="bg-white border border-gray-200 rounded-lg">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Success Message */}

@@ -30,6 +30,7 @@ export interface Company {
   }>;
   trade_license_document: string | null;
   vat_certificate: string | null;
+  approved: boolean;
   bank_details: BankDetails | null;
   created_at: string;
   updated_at: string;
@@ -154,6 +155,202 @@ export async function updateVendorServiceAreas(data: UpdateServiceAreasData): Pr
 
   const response = await fetch(`${API_URL}/vendor/service-areas`, {
     method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<CompanyResponse>(response);
+}
+
+// ============================================
+// Admin Company API Functions
+// ============================================
+
+export interface CompanyListResponse {
+  data: Company[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+/**
+ * Get all companies (admin)
+ */
+export async function getCompanies(page: number = 1): Promise<CompanyListResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies?page=${page}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyListResponse>(response);
+}
+
+/**
+ * Get pending companies awaiting approval (admin)
+ */
+export async function getPendingCompanies(page: number = 1): Promise<CompanyListResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/pending?page=${page}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyListResponse>(response);
+}
+
+/**
+ * Get approved companies (admin)
+ */
+export async function getApprovedCompanies(page: number = 1): Promise<CompanyListResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/approved?page=${page}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyListResponse>(response);
+}
+
+/**
+ * Get a single company by ID (admin)
+ */
+export async function getCompany(id: string): Promise<CompanyResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyResponse>(response);
+}
+
+/**
+ * Approve a company (admin)
+ */
+export async function approveCompany(id: string): Promise<CompanyResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/${id}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyResponse>(response);
+}
+
+/**
+ * Reject a company (admin)
+ */
+export async function rejectCompany(id: string): Promise<CompanyResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/${id}/reject`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<CompanyResponse>(response);
+}
+
+/**
+ * Update a company (admin)
+ */
+export async function updateCompanyAdmin(id: string, data: CompanyUpdateData): Promise<CompanyResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse<CompanyResponse>(response);
+}
+
+/**
+ * Delete a company (admin)
+ */
+export async function deleteCompany(id: string): Promise<{ message: string }> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<{ message: string }>(response);
+}
+
+export interface CreateCompanyData {
+  name: string;
+  email?: string;
+  trade_license_number: string;
+  description?: string;
+  landline?: string;
+  website?: string;
+  establishment?: string;
+  category_id?: string;
+  service_area_ids?: string[];
+  bank_name?: string;
+  account_holder_name?: string;
+  iban?: string;
+  swift_code?: string;
+  trn?: string;
+  approved?: boolean;
+}
+
+/**
+ * Create a company (admin)
+ */
+export async function createCompany(data: CreateCompanyData): Promise<CompanyResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/admin/companies`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',

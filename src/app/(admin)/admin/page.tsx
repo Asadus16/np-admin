@@ -30,94 +30,50 @@ import {
   Cell,
 } from "recharts";
 
-// Mock data for stats
-const stats = [
-  {
-    name: "Total Vendors",
-    value: "156",
-    change: "+12%",
-    trend: "up",
-    icon: Store,
-    href: "/admin/vendors",
-  },
-  {
-    name: "Active Technicians",
-    value: "482",
-    change: "+8%",
-    trend: "up",
-    icon: Wrench,
-    href: "/admin/technicians",
-  },
-  {
-    name: "Categories",
-    value: "24",
-    change: "+2",
-    trend: "up",
-    icon: FolderOpen,
-    href: "/admin/categories",
-  },
-  {
-    name: "Monthly Revenue",
-    value: "$84,230",
-    change: "+18%",
-    trend: "up",
-    icon: DollarSign,
-    href: "/admin/transactions",
-  },
-];
-
-// Mock data for revenue chart (last 7 months)
-const revenueData = [
-  { month: "Jun", revenue: 45000 },
-  { month: "Jul", revenue: 52000 },
-  { month: "Aug", revenue: 48000 },
-  { month: "Sep", revenue: 61000 },
-  { month: "Oct", revenue: 55000 },
-  { month: "Nov", revenue: 72000 },
-  { month: "Dec", revenue: 84230 },
-];
-
-// Mock data for vendor applications
-const applicationData = [
-  { month: "Jun", approved: 12, pending: 5, rejected: 2 },
-  { month: "Jul", approved: 18, pending: 8, rejected: 3 },
-  { month: "Aug", approved: 15, pending: 6, rejected: 4 },
-  { month: "Sep", approved: 22, pending: 10, rejected: 2 },
-  { month: "Oct", approved: 19, pending: 7, rejected: 5 },
-  { month: "Nov", approved: 25, pending: 12, rejected: 3 },
-  { month: "Dec", approved: 28, pending: 15, rejected: 4 },
-];
-
-// Mock recent vendors
-const recentVendors = [
-  { id: 1, name: "ABC Plumbing", status: "pending", date: "Dec 28, 2024", category: "Plumbing" },
-  { id: 2, name: "Quick Fix HVAC", status: "approved", date: "Dec 27, 2024", category: "HVAC" },
-  { id: 3, name: "Elite Electrical", status: "approved", date: "Dec 26, 2024", category: "Electrical" },
-  { id: 4, name: "Pro Painters", status: "rejected", date: "Dec 25, 2024", category: "Painting" },
-  { id: 5, name: "Clean Masters", status: "pending", date: "Dec 24, 2024", category: "Cleaning" },
-];
-
-// Mock recent transactions
-const recentTransactions = [
-  { id: 1, vendor: "Mike's Plumbing", amount: "$1,250.00", type: "Payout", date: "Dec 28, 2024" },
-  { id: 2, vendor: "Quick Fix Services", amount: "$890.50", type: "Payout", date: "Dec 27, 2024" },
-  { id: 3, vendor: "Elite Electrical", amount: "$45.00", type: "Fee", date: "Dec 27, 2024" },
-  { id: 4, vendor: "Pro HVAC", amount: "$2,100.00", type: "Payout", date: "Dec 26, 2024" },
-  { id: 5, vendor: "Clean Masters", amount: "$32.50", type: "Fee", date: "Dec 26, 2024" },
-];
-
-// Mock category distribution
-const categoryDistribution = [
-  { name: "Plumbing", value: 42 },
-  { name: "Electrical", value: 35 },
-  { name: "HVAC", value: 28 },
-  { name: "Cleaning", value: 25 },
-  { name: "Painting", value: 15 },
-  { name: "Other", value: 11 },
-];
-
 // Professional gray color palette
 const GRAY_COLORS = ["#111827", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"];
+
+// Static data
+const revenueData = [
+  { month: "Jul", revenue: 42000 },
+  { month: "Aug", revenue: 38000 },
+  { month: "Sep", revenue: 51000 },
+  { month: "Oct", revenue: 47000 },
+  { month: "Nov", revenue: 53000 },
+  { month: "Dec", revenue: 58000 },
+];
+
+const applicationData = [
+  { month: "Jul", approved: 12, pending: 5, rejected: 2 },
+  { month: "Aug", approved: 15, pending: 8, rejected: 3 },
+  { month: "Sep", approved: 18, pending: 6, rejected: 4 },
+  { month: "Oct", approved: 14, pending: 9, rejected: 2 },
+  { month: "Nov", approved: 20, pending: 7, rejected: 3 },
+  { month: "Dec", approved: 22, pending: 10, rejected: 5 },
+];
+
+const categoryDistribution: Array<{ name: string; value: number; [key: string]: string | number }> = [
+  { name: "Plumbing", value: 45 },
+  { name: "Electrical", value: 32 },
+  { name: "HVAC", value: 28 },
+  { name: "Landscaping", value: 22 },
+  { name: "Cleaning", value: 18 },
+  { name: "Other", value: 15 },
+];
+
+const recentVendors = [
+  { id: 1, name: "Quick Fix Plumbing", status: "approved" as const, date: "2024-12-28", category: "Plumbing" },
+  { id: 2, name: "Spark Electric Co", status: "pending" as const, date: "2024-12-27", category: "Electrical" },
+  { id: 3, name: "Cool Air HVAC", status: "approved" as const, date: "2024-12-26", category: "HVAC" },
+  { id: 4, name: "Green Thumb Gardens", status: "rejected" as const, date: "2024-12-25", category: "Landscaping" },
+];
+
+const recentTransactions = [
+  { id: 1, vendor: "Quick Fix Plumbing", amount: "$1,250", type: "Payout" as const, date: "2024-12-28" },
+  { id: 2, vendor: "Spark Electric Co", amount: "$85", type: "Fee" as const, date: "2024-12-27" },
+  { id: 3, vendor: "Cool Air HVAC", amount: "$2,100", type: "Payout" as const, date: "2024-12-26" },
+  { id: 4, vendor: "Green Thumb Gardens", amount: "$45", type: "Fee" as const, date: "2024-12-25" },
+];
 
 // Custom tooltip styles
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
@@ -137,7 +93,57 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function AdminDashboardPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("7d");
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+
+  const handlePeriodChange = (period: '7d' | '30d' | '90d') => {
+    setSelectedPeriod(period);
+  };
+
+  // Format currency helper
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  // Static stats cards
+  const statsCards = [
+    {
+      name: "Total Vendors",
+      value: "156",
+      change: "+12%",
+      trend: "up" as const,
+      icon: Store,
+      href: "/admin/vendors",
+    },
+    {
+      name: "Active Technicians",
+      value: "89",
+      change: "+8%",
+      trend: "up" as const,
+      icon: Wrench,
+      href: "/admin/technicians",
+    },
+    {
+      name: "Categories",
+      value: "24",
+      change: "+2",
+      trend: "up" as const,
+      icon: FolderOpen,
+      href: "/admin/categories",
+    },
+    {
+      name: "Monthly Revenue",
+      value: formatCurrency(58000),
+      change: "+15%",
+      trend: "up" as const,
+      icon: DollarSign,
+      href: "/admin/transactions",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -148,10 +154,10 @@ export default function AdminDashboardPage() {
           <p className="text-sm text-gray-500 mt-1">Overview of your platform performance</p>
         </div>
         <div className="flex items-center gap-2">
-          {["7d", "30d", "90d"].map((period) => (
+          {(["7d", "30d", "90d"] as const).map((period) => (
             <button
               key={period}
-              onClick={() => setSelectedPeriod(period)}
+              onClick={() => handlePeriodChange(period)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 selectedPeriod === period
                   ? "bg-gray-900 text-white"
@@ -166,7 +172,7 @@ export default function AdminDashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Link
             key={stat.name}
             href={stat.href}
@@ -214,37 +220,43 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#374151" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#374151" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                  tickFormatter={(value) => `$${value / 1000}k`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#111827"
-                  strokeWidth={2}
-                  fill="url(#revenueGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {revenueData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#374151" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#374151" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                    tickFormatter={(value) => `$${value / 1000}k`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#111827"
+                    strokeWidth={2}
+                    fill="url(#revenueGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No revenue data available
+              </div>
+            )}
           </div>
         </div>
 
@@ -263,26 +275,32 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={applicationData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="approved" stackId="a" fill="#111827" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="pending" stackId="a" fill="#6b7280" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="rejected" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {applicationData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={applicationData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="approved" stackId="a" fill="#111827" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="pending" stackId="a" fill="#6b7280" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="rejected" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No application data available
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center gap-2">
@@ -318,49 +336,57 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={70}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={GRAY_COLORS[index % GRAY_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
-                          <p className="font-medium">{payload[0].name}</p>
-                          <p className="text-gray-300">{payload[0].value} vendors</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {categoryDistribution.map((category, index) => (
-              <div key={category.name} className="flex items-center gap-2">
-                <div
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ backgroundColor: GRAY_COLORS[index % GRAY_COLORS.length] }}
-                />
-                <span className="text-xs text-gray-600 truncate">{category.name}</span>
-                <span className="text-xs text-gray-400 ml-auto">{category.value}</span>
+            {categoryDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {categoryDistribution.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={GRAY_COLORS[index % GRAY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+                            <p className="font-medium">{payload[0].name}</p>
+                            <p className="text-gray-300">{payload[0].value} vendors</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No category data available
               </div>
-            ))}
+            )}
           </div>
+          {categoryDistribution.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {categoryDistribution.map((category, index) => (
+                <div key={category.name} className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-sm"
+                    style={{ backgroundColor: GRAY_COLORS[index % GRAY_COLORS.length] }}
+                  />
+                  <span className="text-xs text-gray-600 truncate">{category.name}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{category.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recent Vendors */}
@@ -378,33 +404,39 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentVendors.slice(0, 4).map((vendor) => (
-              <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Store className="h-4 w-4 text-gray-500" />
+            {recentVendors.length > 0 ? (
+              recentVendors.slice(0, 4).map((vendor) => (
+                <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Store className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
+                      <p className="text-xs text-gray-500">{vendor.category}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
-                    <p className="text-xs text-gray-500">{vendor.category}</p>
-                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      vendor.status === "approved"
+                        ? "bg-gray-900 text-white"
+                        : vendor.status === "pending"
+                        ? "bg-gray-200 text-gray-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {vendor.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
+                    {vendor.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
+                    {vendor.status === "rejected" && <XCircle className="h-3 w-3 mr-1" />}
+                    {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
+                  </span>
                 </div>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    vendor.status === "approved"
-                      ? "bg-gray-900 text-white"
-                      : vendor.status === "pending"
-                      ? "bg-gray-200 text-gray-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {vendor.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
-                  {vendor.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
-                  {vendor.status === "rejected" && <XCircle className="h-3 w-3 mr-1" />}
-                  {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
-                </span>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400 text-sm">
+                No recent applications
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -423,28 +455,34 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentTransactions.slice(0, 4).map((transaction) => (
-              <div key={transaction.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    transaction.type === "Payout" ? "bg-gray-900" : "bg-gray-100"
+            {recentTransactions.length > 0 ? (
+              recentTransactions.slice(0, 4).map((transaction) => (
+                <div key={transaction.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      transaction.type === "Payout" ? "bg-gray-900" : "bg-gray-100"
+                    }`}>
+                      <DollarSign className={`h-4 w-4 ${
+                        transaction.type === "Payout" ? "text-white" : "text-gray-500"
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{transaction.vendor}</p>
+                      <p className="text-xs text-gray-500">{transaction.type}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    transaction.type === "Payout" ? "text-gray-900" : "text-gray-500"
                   }`}>
-                    <DollarSign className={`h-4 w-4 ${
-                      transaction.type === "Payout" ? "text-white" : "text-gray-500"
-                    }`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{transaction.vendor}</p>
-                    <p className="text-xs text-gray-500">{transaction.type}</p>
-                  </div>
+                    {transaction.type === "Payout" ? "-" : "+"}{transaction.amount}
+                  </span>
                 </div>
-                <span className={`text-sm font-medium ${
-                  transaction.type === "Payout" ? "text-gray-900" : "text-gray-500"
-                }`}>
-                  {transaction.type === "Payout" ? "-" : "+"}{transaction.amount}
-                </span>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400 text-sm">
+                No recent transactions
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

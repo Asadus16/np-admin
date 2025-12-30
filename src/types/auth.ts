@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'vendor' | 'user' | 'technician';
+export type Role = 'admin' | 'vendor' | 'customer' | 'user' | 'technician';
 
 export interface UserRole {
   id: number;
@@ -24,6 +24,22 @@ export interface User {
   // Vendor-specific fields
   vendorId?: string;
   vendorName?: string;
+  // Customer-specific fields
+  nationality?: string;
+  addresses?: CustomerAddress[];
+}
+
+export interface CustomerAddress {
+  id: string;
+  label: string;
+  street: string;
+  building?: string;
+  apartment?: string;
+  city: string;
+  emirate: string;
+  latitude?: number;
+  longitude?: number;
+  isDefault?: boolean;
 }
 
 // Helper to get user's full name
@@ -74,6 +90,18 @@ export interface RegisterCredentials {
   iban?: string;
   swift_code?: string;
   trn?: string;
+  // Customer-specific fields (required when role is 'customer')
+  nationality?: string;
+  emirates_id_number?: string;
+  emirates_id_front?: File;
+  emirates_id_back?: File;
+  address_street?: string;
+  address_building?: string;
+  address_apartment?: string;
+  address_city?: string;
+  address_emirate?: string;
+  address_latitude?: number;
+  address_longitude?: number;
 }
 
 export interface AuthResponse {
