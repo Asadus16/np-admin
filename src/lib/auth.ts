@@ -47,6 +47,11 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
     credentials.service_area_ids.forEach((id) => formData.append('service_area_ids[]', id));
   }
 
+  // Services (array of objects with sub_services)
+  if (credentials.services && credentials.services.length > 0) {
+    formData.append('services', JSON.stringify(credentials.services));
+  }
+
   // Legal & Bank
   if (credentials.trade_license_document) formData.append('trade_license_document', credentials.trade_license_document);
   if (credentials.vat_certificate) formData.append('vat_certificate', credentials.vat_certificate);

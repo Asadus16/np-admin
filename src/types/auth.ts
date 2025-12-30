@@ -63,6 +63,21 @@ export interface LoginCredentials {
   password: string;
 }
 
+// Service sub-service for vendor registration
+export interface RegisterSubService {
+  name: string;
+  price: string;
+  duration: string;
+  description?: string;
+}
+
+// Service for vendor registration
+export interface RegisterService {
+  name: string;
+  description?: string;
+  sub_services: RegisterSubService[];
+}
+
 export interface RegisterCredentials {
   first_name: string;
   last_name: string;
@@ -82,6 +97,7 @@ export interface RegisterCredentials {
   // Services & Service Areas
   category_id?: string;
   service_area_ids?: string[];
+  services?: RegisterService[];
   // Legal & Bank
   trade_license_document?: File;
   vat_certificate?: File;

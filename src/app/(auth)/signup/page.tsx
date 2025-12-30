@@ -462,6 +462,19 @@ export default function SignupPage() {
     setIsLoading(true);
     setGeneralError("");
 
+    // Format services for backend (without File objects, those need separate upload)
+    const formattedServices = vendorFormData.services.map((service) => ({
+      name: service.name,
+      description: service.description,
+      // image will be handled separately if needed
+      sub_services: service.subServices.map((sub) => ({
+        name: sub.name,
+        price: sub.price,
+        duration: sub.duration,
+        description: sub.description,
+      })),
+    }));
+
     try {
       await register({
         first_name: vendorFormData.firstName,
@@ -479,6 +492,7 @@ export default function SignupPage() {
         establishment: vendorFormData.establishmentDate || undefined,
         category_id: vendorFormData.selectedCategories[0] || undefined,
         service_area_ids: vendorFormData.selectedServiceAreas,
+        services: formattedServices.length > 0 ? formattedServices : undefined,
         trade_license_document: vendorFormData.tradeLicenseFile || undefined,
         vat_certificate: vendorFormData.vatCertificateFile || undefined,
         bank_name: vendorFormData.bankName,
