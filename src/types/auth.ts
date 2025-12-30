@@ -99,7 +99,7 @@ export interface RegisterCredentials {
   contact_last_name?: string;
   designation?: string;
   contact_email?: string;
-  mobile_number?: string;
+  phone?: string;
   emirates_id?: string;
   // Services & Service Areas
   category_id?: string;

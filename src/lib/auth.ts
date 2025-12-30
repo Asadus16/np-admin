@@ -44,7 +44,7 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
   if (credentials.contact_last_name) formData.append('contact_last_name', credentials.contact_last_name);
   if (credentials.designation) formData.append('designation', credentials.designation);
   if (credentials.contact_email) formData.append('contact_email', credentials.contact_email);
-  if (credentials.mobile_number) formData.append('mobile_number', credentials.mobile_number);
+  if (credentials.phone) formData.append('phone', credentials.phone);
   if (credentials.emirates_id) formData.append('emirates_id', credentials.emirates_id);
 
   // Services - single category_id

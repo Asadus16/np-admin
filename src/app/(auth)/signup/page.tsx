@@ -496,7 +496,7 @@ export default function SignupPage() {
         contact_last_name: vendorFormData.contactLastName || undefined,
         designation: vendorFormData.designation || undefined,
         contact_email: vendorFormData.contactEmail || undefined,
-        mobile_number: vendorFormData.mobileNumber || undefined,
+        phone: vendorFormData.mobileNumber || undefined,
         emirates_id: vendorFormData.emiratesId || undefined,
         // Services & service areas
         category_id: vendorFormData.selectedCategories[0] || undefined,
@@ -534,7 +534,7 @@ export default function SignupPage() {
           contact_last_name: "contactLastName",
           designation: "designation",
           contact_email: "contactEmail",
-          mobile_number: "mobileNumber",
+          phone: "mobileNumber",
           emirates_id: "emiratesId",
           category_id: "selectedCategories",
           service_area_ids: "selectedServiceAreas",
