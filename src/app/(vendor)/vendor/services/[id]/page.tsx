@@ -360,7 +360,7 @@ export default function ServiceDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Price ($) <span className="text-red-500">*</span>
+                    Price (AED) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -487,8 +487,7 @@ export default function ServiceDetailPage() {
                       </h3>
                       <div className="flex items-center gap-4 text-sm text-gray-600">
                         <span className="flex items-center gap-1">
-                          <DollarSign className="h-4 w-4" />
-                          ${parseFloat(subService.price).toFixed(2)}
+                          {parseFloat(subService.price).toFixed(2)} AED
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
