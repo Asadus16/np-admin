@@ -1,11 +1,11 @@
 "use client";
 
-import { StoreProvider } from '@/store/provider';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 interface ProvidersProps {
   children: React.ReactNode;
 }
 
 export function Providers({ children }: ProvidersProps) {
-  return <StoreProvider>{children}</StoreProvider>;
+  return <AuthProvider>{children}</AuthProvider>;
 }
