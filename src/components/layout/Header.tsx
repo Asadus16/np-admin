@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PanelLeft, LogOut, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getPrimaryRole, hasRole, getUserFullName } from "@/types/auth";
+import { getPrimaryRole, hasRole } from "@/types/auth";
 
 interface HeaderProps {
   isCollapsed: boolean;
@@ -32,20 +32,13 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
     router.push("/login");
   };
 
-  const getInitials = () => {
-    if (!user) return "U";
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    }
-    if (user.name) {
-      return user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    return user.email?.[0]?.toUpperCase() || "U";
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
   };
 
   const getRoleBadge = () => {
@@ -175,7 +168,7 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
               className="h-7 w-7 sm:h-8 sm:w-8 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
             >
               <span className="text-white font-medium text-xs sm:text-sm">
-                {getInitials()}
+                {user ? getInitials(user.name) : "U"}
               </span>
             </button>
 
@@ -189,7 +182,7 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
                 <div className="absolute right-0 z-50 mt-2 w-56 bg-white border border-gray-200 rounded-[5px] shadow-lg">
                   <div className="px-4 py-2 border-b border-gray-200">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">{getUserFullName(user)}</p>
+                      <p className="text-sm font-medium">{user?.name || "User"}</p>
                       <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
                         {getRoleBadge()}
                       </span>

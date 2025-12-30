@@ -15,7 +15,6 @@ import {
   Shield,
   Store,
   Wrench,
-  MapPin,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -43,14 +42,6 @@ const navigation: NavItem[] = [
     children: [
       { name: "All Categories", href: "/admin/categories" },
       { name: "Add Category", href: "/admin/categories/add" },
-    ],
-  },
-  {
-    name: "Service Areas",
-    icon: <MapPin className="h-4 w-4" />,
-    children: [
-      { name: "All Service Areas", href: "/admin/service-areas" },
-      { name: "Add Service Area", href: "/admin/service-areas/add" },
     ],
   },
   {
