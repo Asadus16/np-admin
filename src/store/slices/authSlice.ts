@@ -7,14 +7,7 @@ import {
   saveAuthToStorage,
   getAuthFromStorage,
   clearAuthFromStorage,
-  ApiException,
 } from '@/lib/auth';
-
-interface SerializedApiError {
-  message: string;
-  status?: number;
-  errors?: Record<string, string[]>;
-}
 
 interface AuthState {
   user: User | null;
@@ -41,17 +34,10 @@ export const login = createAsyncThunk(
       saveAuthToStorage(response.user, response.token);
       return { user: response.user, token: response.token };
     } catch (error) {
-      if (error instanceof ApiException) {
-        return rejectWithValue({
-          message: error.message,
-          status: error.status,
-          errors: error.errors,
-        } as SerializedApiError);
-      }
       if (error instanceof Error) {
-        return rejectWithValue({ message: error.message } as SerializedApiError);
+        return rejectWithValue(error.message);
       }
-      return rejectWithValue({ message: 'Login failed' } as SerializedApiError);
+      return rejectWithValue('Login failed');
     }
   }
 );
@@ -64,17 +50,10 @@ export const register = createAsyncThunk(
       saveAuthToStorage(response.user, response.token);
       return { user: response.user, token: response.token };
     } catch (error) {
-      if (error instanceof ApiException) {
-        return rejectWithValue({
-          message: error.message,
-          status: error.status,
-          errors: error.errors,
-        } as SerializedApiError);
-      }
       if (error instanceof Error) {
-        return rejectWithValue({ message: error.message } as SerializedApiError);
+        return rejectWithValue(error.message);
       }
-      return rejectWithValue({ message: 'Registration failed' } as SerializedApiError);
+      return rejectWithValue('Registration failed');
     }
   }
 );

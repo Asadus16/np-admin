@@ -2,22 +2,13 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { getRedirectPathForUser } from "@/lib/auth";
 
 export default function Home() {
-  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (!isAuthenticated) {
-      router.replace("/login");
-    } else if (user) {
-      router.replace(getRedirectPathForUser(user));
-    }
-  }, [isAuthenticated, isLoading, user, router]);
+    router.replace("/admin");
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
