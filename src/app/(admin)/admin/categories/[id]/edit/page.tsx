@@ -1,40 +1,149 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Upload, Plus, X } from "lucide-react";
+import { ArrowLeft, Upload, X } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  fetchCategory,
+  updateCategory,
+  clearError,
+  clearCurrentCategory,
+} from "@/store/slices/categorySlice";
+
+interface FormErrors {
+  name?: string;
+  description?: string;
+  image?: string;
+  general?: string;
+}
 
 export default function EditCategoryPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const params = useParams();
+  const id = params.id as string;
+  const dispatch = useAppDispatch();
+  const { currentCategory, isLoading, isSubmitting, error } = useAppSelector(
+    (state) => state.category
+  );
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [existingImage, setExistingImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: "Plumbing",
-    slug: "plumbing",
-    description: "All plumbing related services including repairs, installations, and maintenance.",
-    status: "active",
+    name: "",
+    description: "",
+    status: true,
+    image: null as File | null,
   });
-  const [attributes, setAttributes] = useState([
-    { name: "Service Type", values: ["Repair", "Installation", "Maintenance"] },
-    { name: "Urgency", values: ["Standard", "Same Day", "Emergency"] },
-  ]);
+
+  useEffect(() => {
+    dispatch(fetchCategory(id));
+
+    return () => {
+      dispatch(clearError());
+      dispatch(clearCurrentCategory());
+    };
+  }, [dispatch, id]);
+
+  useEffect(() => {
+    if (currentCategory) {
+      setFormData({
+        name: currentCategory.name,
+        description: currentCategory.description || "",
+        status: currentCategory.status,
+        image: null,
+      });
+      if (currentCategory.image) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const imageUrl = currentCategory.image.startsWith("http")
+          ? currentCategory.image
+          : `${apiUrl.replace("/api", "")}/storage/${currentCategory.image}`;
+        setExistingImage(imageUrl);
+      }
+    }
+  }, [currentCategory]);
+
+  useEffect(() => {
+    if (error) {
+      if (error.errors) {
+        setErrors({
+          name: error.errors.name?.[0],
+          description: error.errors.description?.[0],
+          image: error.errors.image?.[0],
+        });
+      } else {
+        setErrors({ general: error.message });
+      }
+    }
+  }, [error]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setErrors({ ...errors, image: "Image must be less than 2MB" });
+        return;
+      }
+
+      const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/gif", "image/webp"];
+      if (!validTypes.includes(file.type)) {
+        setErrors({ ...errors, image: "Please select a valid image file (JPEG, PNG, GIF, WebP)" });
+        return;
+      }
+
+      setFormData({ ...formData, image: file });
+      setImagePreview(URL.createObjectURL(file));
+      setExistingImage(null);
+      setErrors({ ...errors, image: undefined });
+    }
+  };
+
+  const removeImage = () => {
+    setFormData({ ...formData, image: null });
+    setImagePreview(null);
+    setExistingImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrors({});
+
+    if (!formData.name.trim()) {
+      setErrors({ name: "Name is required" });
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateCategory({
+          id,
+          data: {
+            name: formData.name,
+            description: formData.description,
+            image: formData.image || undefined,
+            status: formData.status,
+          },
+        })
+      ).unwrap();
       router.push("/admin/categories");
-    }, 1000);
+    } catch {
+      // Error is handled by Redux and useEffect
+    }
   };
 
-  const addAttribute = () => {
-    setAttributes([...attributes, { name: "", values: [] }]);
-  };
-
-  const removeAttribute = (index: number) => {
-    setAttributes(attributes.filter((_, i) => i !== index));
-  };
+  if (isLoading && !currentCategory) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -53,121 +162,96 @@ export default function EditCategoryPage() {
 
       <div className="bg-white border border-gray-200 rounded-lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Category Name
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                required
-              />
+          {errors.general && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{errors.general}</p>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Slug
-              </label>
-              <input
-                type="text"
-                value={formData.slug}
-                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                required
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
+              Category Name <span className="text-red-500">*</span>
             </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (errors.name) setErrors({ ...errors, name: undefined });
+              }}
+              placeholder="Enter category name"
+              className={`w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 ${
+                errors.name ? "border-red-500" : "border-gray-300"
+              }`}
+            />
+            {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                if (errors.description) setErrors({ ...errors, description: undefined });
+              }}
+              placeholder="Enter category description"
               rows={4}
-              className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 resize-none"
+              className={`w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 resize-none ${
+                errors.description ? "border-red-500" : "border-gray-300"
+              }`}
             />
+            {errors.description && (
+              <p className="text-sm text-red-500 mt-1">{errors.description}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Icon
-            </label>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl font-medium text-gray-600">P</span>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
+            {imagePreview || existingImage ? (
+              <div className="relative inline-block">
+                <img
+                  src={imagePreview || existingImage || ""}
+                  alt="Preview"
+                  width={200}
+                  height={200}
+                  className="rounded-lg object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button type="button" className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                <Upload className="h-4 w-4 mr-2" />
-                Change Icon
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Attributes
-              </label>
-              <button
-                type="button"
-                onClick={addAttribute}
-                className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-gray-400 transition-colors cursor-pointer ${
+                  errors.image ? "border-red-500" : "border-gray-300"
+                }`}
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Attribute
-              </button>
-            </div>
-            <div className="space-y-3">
-              {attributes.map((attr, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={attr.name}
-                      onChange={(e) => {
-                        const newAttrs = [...attributes];
-                        newAttrs[index].name = e.target.value;
-                        setAttributes(newAttrs);
-                      }}
-                      placeholder="Attribute name"
-                      className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    />
-                    <input
-                      type="text"
-                      value={attr.values.join(", ")}
-                      onChange={(e) => {
-                        const newAttrs = [...attributes];
-                        newAttrs[index].values = e.target.value.split(",").map((v) => v.trim());
-                        setAttributes(newAttrs);
-                      }}
-                      placeholder="Values (comma separated)"
-                      className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeAttribute(index)}
-                    className="p-2 text-gray-400 hover:text-red-500"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
+                <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Click to upload or drag and drop</p>
+                <p className="text-xs text-gray-400 mt-1">JPEG, PNG, GIF or WebP (max. 2MB)</p>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+              onChange={handleImageChange}
+              className="hidden"
+            />
+            {errors.image && <p className="text-sm text-red-500 mt-1">{errors.image}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Status
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
             <select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              value={formData.status ? "active" : "inactive"}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value === "active" })}
               className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
             >
               <option value="active">Active</option>
@@ -184,10 +268,10 @@ export default function EditCategoryPage() {
             </Link>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
-              {isLoading ? "Saving..." : "Save Changes"}
+              {isSubmitting ? "Updating..." : "Update Category"}
             </button>
           </div>
         </form>

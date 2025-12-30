@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Upload, X } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { createCategory, clearError } from "@/store/slices/categorySlice";
+import {
+  fetchServiceArea,
+  updateServiceArea,
+  clearError,
+  clearCurrentServiceArea,
+} from "@/store/slices/serviceAreaSlice";
 
 interface FormErrors {
   name?: string;
@@ -14,14 +19,19 @@ interface FormErrors {
   general?: string;
 }
 
-export default function AddCategoryPage() {
+export default function EditServiceAreaPage() {
   const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
   const dispatch = useAppDispatch();
-  const { isSubmitting, error } = useAppSelector((state) => state.category);
+  const { currentServiceArea, isLoading, isSubmitting, error } = useAppSelector(
+    (state) => state.serviceArea
+  );
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [existingImage, setExistingImage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -30,10 +40,31 @@ export default function AddCategoryPage() {
   });
 
   useEffect(() => {
+    dispatch(fetchServiceArea(id));
+
     return () => {
       dispatch(clearError());
+      dispatch(clearCurrentServiceArea());
     };
-  }, [dispatch]);
+  }, [dispatch, id]);
+
+  useEffect(() => {
+    if (currentServiceArea) {
+      setFormData({
+        name: currentServiceArea.name,
+        description: currentServiceArea.description || "",
+        status: currentServiceArea.status,
+        image: null,
+      });
+      if (currentServiceArea.image) {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const imageUrl = currentServiceArea.image.startsWith("http")
+          ? currentServiceArea.image
+          : `${apiUrl.replace("/api", "")}/storage/${currentServiceArea.image}`;
+        setExistingImage(imageUrl);
+      }
+    }
+  }, [currentServiceArea]);
 
   useEffect(() => {
     if (error) {
@@ -65,6 +96,7 @@ export default function AddCategoryPage() {
 
       setFormData({ ...formData, image: file });
       setImagePreview(URL.createObjectURL(file));
+      setExistingImage(null);
       setErrors({ ...errors, image: undefined });
     }
   };
@@ -72,6 +104,7 @@ export default function AddCategoryPage() {
   const removeImage = () => {
     setFormData({ ...formData, image: null });
     setImagePreview(null);
+    setExistingImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -88,31 +121,42 @@ export default function AddCategoryPage() {
 
     try {
       await dispatch(
-        createCategory({
-          name: formData.name,
-          description: formData.description || undefined,
-          image: formData.image || undefined,
-          status: formData.status,
+        updateServiceArea({
+          id,
+          data: {
+            name: formData.name,
+            description: formData.description,
+            image: formData.image || undefined,
+            status: formData.status,
+          },
         })
       ).unwrap();
-      router.push("/admin/categories");
+      router.push("/admin/service-areas");
     } catch {
       // Error is handled by Redux and useEffect
     }
   };
 
+  if (isLoading && !currentServiceArea) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link
-          href="/admin/categories"
+          href="/admin/service-areas"
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5 text-gray-500" />
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Add Category</h1>
-          <p className="text-sm text-gray-500 mt-1">Create a new service category</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Edit Service Area</h1>
+          <p className="text-sm text-gray-500 mt-1">Update service area details</p>
         </div>
       </div>
 
@@ -126,7 +170,7 @@ export default function AddCategoryPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Category Name <span className="text-red-500">*</span>
+              Service Area Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -135,7 +179,7 @@ export default function AddCategoryPage() {
                 setFormData({ ...formData, name: e.target.value });
                 if (errors.name) setErrors({ ...errors, name: undefined });
               }}
-              placeholder="Enter category name"
+              placeholder="Enter service area name"
               className={`w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 ${
                 errors.name ? "border-red-500" : "border-gray-300"
               }`}
@@ -151,7 +195,7 @@ export default function AddCategoryPage() {
                 setFormData({ ...formData, description: e.target.value });
                 if (errors.description) setErrors({ ...errors, description: undefined });
               }}
-              placeholder="Enter category description"
+              placeholder="Enter service area description"
               rows={4}
               className={`w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 resize-none ${
                 errors.description ? "border-red-500" : "border-gray-300"
@@ -164,10 +208,10 @@ export default function AddCategoryPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Image</label>
-            {imagePreview ? (
+            {imagePreview || existingImage ? (
               <div className="relative inline-block">
                 <img
-                  src={imagePreview}
+                  src={imagePreview || existingImage || ""}
                   alt="Preview"
                   width={200}
                   height={200}
@@ -217,7 +261,7 @@ export default function AddCategoryPage() {
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
             <Link
-              href="/admin/categories"
+              href="/admin/service-areas"
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
@@ -227,7 +271,7 @@ export default function AddCategoryPage() {
               disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
-              {isSubmitting ? "Creating..." : "Create Category"}
+              {isSubmitting ? "Updating..." : "Update Service Area"}
             </button>
           </div>
         </form>

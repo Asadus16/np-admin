@@ -5,21 +5,21 @@ import Link from "next/link";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
-  fetchCategories,
-  deleteCategory,
+  fetchServiceAreas,
+  deleteServiceArea,
   setCurrentPage,
   clearError,
-} from "@/store/slices/categorySlice";
+} from "@/store/slices/serviceAreaSlice";
 
-export default function CategoriesPage() {
+export default function ServiceAreasPage() {
   const dispatch = useAppDispatch();
   const {
-    categories,
+    serviceAreas,
     isLoading,
     isSubmitting,
     error,
     pagination,
-  } = useAppSelector((state) => state.category);
+  } = useAppSelector((state) => state.serviceArea);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export default function CategoriesPage() {
   const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   useEffect(() => {
-    dispatch(fetchCategories(pagination.currentPage));
+    dispatch(fetchServiceAreas(pagination.currentPage));
   }, [dispatch, pagination.currentPage]);
 
   useEffect(() => {
@@ -38,15 +38,14 @@ export default function CategoriesPage() {
   }, [dispatch]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this category?")) {
+    if (!confirm("Are you sure you want to delete this service area?")) {
       return;
     }
 
     setDeletingId(id);
     try {
-      await dispatch(deleteCategory(id)).unwrap();
+      await dispatch(deleteServiceArea(id)).unwrap();
       setOpenMenu(null);
-      setMenuPosition(null);
     } catch {
       // Error is handled by Redux
     } finally {
@@ -58,8 +57,8 @@ export default function CategoriesPage() {
     dispatch(setCurrentPage(page));
   };
 
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredServiceAreas = serviceAreas.filter((area) =>
+    area.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getImageUrl = (imagePath: string | null) => {
@@ -73,15 +72,15 @@ export default function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Categories</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage service categories</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Service Areas</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage service areas</p>
         </div>
         <Link
-          href="/admin/categories/add"
+          href="/admin/service-areas/add"
           className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Add Category
+          Add Service Area
         </Link>
       </div>
 
@@ -91,7 +90,7 @@ export default function CategoriesPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search categories..."
+              placeholder="Search service areas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
@@ -133,14 +132,14 @@ export default function CategoriesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredCategories.map((category) => (
-                    <tr key={category.id} className="hover:bg-gray-50">
+                  {filteredServiceAreas.map((serviceArea) => (
+                    <tr key={serviceArea.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          {category.image ? (
+                          {serviceArea.image ? (
                             <img
-                              src={getImageUrl(category.image) || ""}
-                              alt={category.name}
+                              src={getImageUrl(serviceArea.image) || ""}
+                              alt={serviceArea.name}
                               width={32}
                               height={32}
                               className="w-8 h-8 rounded-lg object-cover"
@@ -148,53 +147,53 @@ export default function CategoriesPage() {
                           ) : (
                             <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
                               <span className="text-xs font-medium text-gray-600">
-                                {category.name.charAt(0)}
+                                {serviceArea.name.charAt(0)}
                               </span>
                             </div>
                           )}
                           <span className="text-sm font-medium text-gray-900">
-                            {category.name}
+                            {serviceArea.name}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-gray-500">{category.slug}</span>
+                        <span className="text-sm text-gray-500">{serviceArea.slug}</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className="text-sm text-gray-500 line-clamp-1">
-                          {category.description || "-"}
+                          {serviceArea.description || "-"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                            category.status
+                            serviceArea.status
                               ? "bg-green-50 text-green-700"
                               : "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {category.status ? "Active" : "Inactive"}
+                          {serviceArea.status ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
                           ref={(el) => {
-                            if (el) buttonRefs.current.set(category.id, el);
+                            if (el) buttonRefs.current.set(serviceArea.id, el);
                           }}
                           onClick={() => {
-                            if (openMenu === category.id) {
+                            if (openMenu === serviceArea.id) {
                               setOpenMenu(null);
                               setMenuPosition(null);
                             } else {
-                              const button = buttonRefs.current.get(category.id);
+                              const button = buttonRefs.current.get(serviceArea.id);
                               if (button) {
                                 const rect = button.getBoundingClientRect();
                                 setMenuPosition({
                                   top: rect.bottom + 4,
-                                  left: rect.right - 144,
+                                  left: rect.right - 144, // 144px = w-36 (9rem)
                                 });
                               }
-                              setOpenMenu(category.id);
+                              setOpenMenu(serviceArea.id);
                             }
                           }}
                           className="p-1 rounded hover:bg-gray-100"
@@ -223,14 +222,14 @@ export default function CategoriesPage() {
                   style={{ top: menuPosition.top, left: menuPosition.left }}
                 >
                   <Link
-                    href={`/admin/categories/${openMenu}`}
+                    href={`/admin/service-areas/${openMenu}`}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-t-lg"
                     onClick={() => setOpenMenu(null)}
                   >
                     <Eye className="h-4 w-4" /> View
                   </Link>
                   <Link
-                    href={`/admin/categories/${openMenu}/edit`}
+                    href={`/admin/service-areas/${openMenu}/edit`}
                     className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     onClick={() => setOpenMenu(null)}
                   >
@@ -251,9 +250,9 @@ export default function CategoriesPage() {
               </>
             )}
 
-            {filteredCategories.length === 0 && (
+            {filteredServiceAreas.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-sm text-gray-500">No categories found</p>
+                <p className="text-sm text-gray-500">No service areas found</p>
               </div>
             )}
 

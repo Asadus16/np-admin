@@ -4,21 +4,86 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { getRedirectPathForUser } from "@/lib/auth";
+
+interface ApiError {
+  message: string;
+  status?: number;
+  errors?: Record<string, string[]>;
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [generalError, setGeneralError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setEmailError("");
+    setPasswordError("");
+    setGeneralError("");
+
+    if (!email) {
+      setEmailError("Email is required");
+      return;
+    }
+    if (!validateEmail(email)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Password is required");
+      return;
+    }
+
     setIsLoading(true);
-    // Skip validation, just redirect
-    setTimeout(() => {
-      router.push("/admin");
-    }, 500);
+    try {
+      const user = await login({ email, password });
+      const redirectPath = getRedirectPathForUser(user);
+      console.log("Login successful, redirecting to:", redirectPath, "User:", user);
+      router.push(redirectPath);
+    } catch (error) {
+      console.error("Login error:", error);
+      // Handle serialized API error from Redux
+      const apiError = error as ApiError;
+      if (apiError && typeof apiError === 'object' && 'message' in apiError) {
+        if (apiError.status === 401) {
+          setGeneralError("Invalid email or password");
+        } else if (apiError.errors) {
+          if (apiError.errors.email) {
+            setEmailError(apiError.errors.email[0]);
+          }
+          if (apiError.errors.password) {
+            setPasswordError(apiError.errors.password[0]);
+          }
+          if (!apiError.errors.email && !apiError.errors.password) {
+            setGeneralError(apiError.message);
+          }
+        } else {
+          setGeneralError(apiError.message);
+        }
+      } else if (error instanceof Error) {
+        setGeneralError(error.message);
+      } else {
+        setGeneralError("Login failed. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const isFormValid = email && password && !emailError && !passwordError;
 
   return (
     <div className="h-screen flex flex-col lg:flex-row bg-white overflow-hidden">
@@ -71,6 +136,13 @@ export default function LoginPage() {
               <p className="text-lg text-gray-500 mt-4">Please sign in to your account</p>
             </div>
 
+            {/* General Error */}
+            {generalError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{generalError}</p>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-6 w-full">
               {/* Email Field */}
@@ -81,11 +153,25 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (e.target.value && !validateEmail(e.target.value)) {
+                      setEmailError("Please enter a valid email address");
+                    } else {
+                      setEmailError("");
+                    }
+                  }}
                   placeholder="Email address"
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-sm rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:border-gray-400 focus:ring-gray-500/20 transition-colors disabled:opacity-50"
+                  className={`w-full px-4 py-3 text-sm rounded-lg border bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors disabled:opacity-50 ${
+                    emailError
+                      ? "border-red-500 focus:ring-red-500/20"
+                      : "border-gray-300 focus:border-gray-400 focus:ring-gray-500/20"
+                  }`}
                 />
+                <div className="h-4 mt-1">
+                  {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+                </div>
               </div>
 
               {/* Password Field */}
@@ -96,11 +182,21 @@ export default function LoginPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordError("");
+                  }}
                   placeholder="Password"
                   disabled={isLoading}
-                  className="w-full px-4 py-3 text-sm rounded-lg border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:border-gray-400 focus:ring-gray-500/20 transition-colors disabled:opacity-50"
+                  className={`w-full px-4 py-3 text-sm rounded-lg border bg-white text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors disabled:opacity-50 ${
+                    passwordError
+                      ? "border-red-500 focus:ring-red-500/20"
+                      : "border-gray-300 focus:border-gray-400 focus:ring-gray-500/20"
+                  }`}
                 />
+                <div className="h-4 mt-1">
+                  {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
+                </div>
               </div>
 
               {/* Forgot password */}
@@ -116,11 +212,15 @@ export default function LoginPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !isFormValid}
                 className="w-full h-12 text-sm font-semibold rounded-lg transition-all duration-200 text-white disabled:cursor-not-allowed"
                 style={{
-                  background: isLoading ? "#1D4ED8" : "#2563EB",
-                  border: `1px solid ${isLoading ? "#1D4ED8" : "#2563EB"}`,
+                  background: isLoading
+                    ? "#1D4ED8"
+                    : !isFormValid
+                    ? "#9CA3AF"
+                    : "#2563EB",
+                  border: `1px solid ${isLoading ? "#1D4ED8" : !isFormValid ? "#9CA3AF" : "#2563EB"}`,
                 }}
               >
                 {isLoading ? (
