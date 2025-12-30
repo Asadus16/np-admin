@@ -132,6 +132,8 @@ export function getRedirectPath(role: Role | null): string {
       return '/admin';
     case 'vendor':
       return '/vendor';
+    case 'customer':
+      return '/customer';
     case 'technician':
       return '/vendor'; // Technicians use vendor portal
     default:
