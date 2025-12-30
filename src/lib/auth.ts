@@ -3,7 +3,7 @@ import { api, ApiException } from './api';
 
 const AUTH_STORAGE_KEY = 'np_admin_auth';
 const TOKEN_STORAGE_KEY = 'np_admin_token';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // API Auth Functions
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -38,6 +38,14 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
   if (credentials.landline) formData.append('landline', credentials.landline);
   if (credentials.website) formData.append('website', credentials.website);
   if (credentials.establishment) formData.append('establishment', credentials.establishment);
+
+  // Primary Contact
+  if (credentials.contact_first_name) formData.append('contact_first_name', credentials.contact_first_name);
+  if (credentials.contact_last_name) formData.append('contact_last_name', credentials.contact_last_name);
+  if (credentials.designation) formData.append('designation', credentials.designation);
+  if (credentials.contact_email) formData.append('contact_email', credentials.contact_email);
+  if (credentials.mobile_number) formData.append('mobile_number', credentials.mobile_number);
+  if (credentials.emirates_id) formData.append('emirates_id', credentials.emirates_id);
 
   // Services - single category_id
   if (credentials.category_id) formData.append('category_id', credentials.category_id);
