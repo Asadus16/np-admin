@@ -7,8 +7,11 @@ import {
   register as registerAction,
   logout as logoutAction,
   updateUser as updateUserAction,
+  sendPhoneOTP as sendPhoneOTPAction,
+  verifyPhoneOTP as verifyPhoneOTPAction,
 } from '@/store/slices/authSlice';
 import { LoginCredentials, RegisterCredentials, User, getPrimaryRole, hasRole, Role } from '@/types/auth';
+import { ConfirmationResult } from '@/lib/firebase';
 
 export function useAuth() {
   const dispatch = useAppDispatch();
@@ -41,6 +44,22 @@ export function useAuth() {
     [dispatch]
   );
 
+  const sendPhoneOTP = useCallback(
+    async (phoneNumber: string): Promise<{ confirmationResult: ConfirmationResult; phoneNumber: string }> => {
+      const result = await dispatch(sendPhoneOTPAction(phoneNumber)).unwrap();
+      return result;
+    },
+    [dispatch]
+  );
+
+  const verifyPhoneOTP = useCallback(
+    async (confirmationResult: ConfirmationResult, code: string, phoneNumber: string): Promise<User> => {
+      const result = await dispatch(verifyPhoneOTPAction({ confirmationResult, code, phoneNumber })).unwrap();
+      return result.user;
+    },
+    [dispatch]
+  );
+
   return {
     user,
     token,
@@ -50,6 +69,8 @@ export function useAuth() {
     register,
     logout,
     updateUser,
+    sendPhoneOTP,
+    verifyPhoneOTP,
   };
 }
 

@@ -4,11 +4,13 @@ import {
   apiLogin,
   apiRegister,
   apiLogout,
+  apiLoginWithPhone,
   saveAuthToStorage,
   getAuthFromStorage,
   clearAuthFromStorage,
   ApiException,
 } from '@/lib/auth';
+import { sendOTP, verifyOTP, clearRecaptchaVerifier, ConfirmationResult } from '@/lib/firebase';
 
 interface SerializedApiError {
   message: string;
@@ -108,6 +110,57 @@ export const initializeAuth = createAsyncThunk(
   }
 );
 
+// Phone authentication thunks
+export const sendPhoneOTP = createAsyncThunk(
+  'auth/sendPhoneOTP',
+  async (phoneNumber: string, { rejectWithValue }) => {
+    try {
+      const confirmationResult = await sendOTP(phoneNumber);
+      return { confirmationResult, phoneNumber };
+    } catch (error) {
+      clearRecaptchaVerifier();
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to send OTP' } as SerializedApiError);
+    }
+  }
+);
+
+export const verifyPhoneOTP = createAsyncThunk(
+  'auth/verifyPhoneOTP',
+  async (
+    { confirmationResult, code, phoneNumber }: { confirmationResult: ConfirmationResult; code: string; phoneNumber: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      // Verify OTP with Firebase
+      const userCredential = await verifyOTP(confirmationResult, code);
+      const firebaseIdToken = await userCredential.user.getIdToken();
+      
+      // Exchange Firebase token for backend token
+      const response = await apiLoginWithPhone(firebaseIdToken, phoneNumber);
+      saveAuthToStorage(response.user, response.token);
+      clearRecaptchaVerifier();
+      
+      return { user: response.user, token: response.token };
+    } catch (error) {
+      clearRecaptchaVerifier();
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'OTP verification failed' } as SerializedApiError);
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -195,6 +248,39 @@ const authSlice = createSlice({
       })
       .addCase(initializeAuth.rejected, (state) => {
         state.isLoading = false;
+      });
+
+    // Send Phone OTP
+    builder
+      .addCase(sendPhoneOTP.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(sendPhoneOTP.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(sendPhoneOTP.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = (action.payload as SerializedApiError)?.message || 'Failed to send OTP';
+      });
+
+    // Verify Phone OTP
+    builder
+      .addCase(verifyPhoneOTP.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(verifyPhoneOTP.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(verifyPhoneOTP.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = (action.payload as SerializedApiError)?.message || 'OTP verification failed';
       });
   },
 });

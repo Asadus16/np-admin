@@ -85,6 +85,14 @@ export async function apiGetMe(token: string): Promise<{ user: User }> {
   return api.get<{ user: User }>('/auth/me', token);
 }
 
+// Phone authentication - exchange Firebase ID token for backend token
+export async function apiLoginWithPhone(firebaseIdToken: string, phoneNumber: string): Promise<AuthResponse> {
+  return api.post<AuthResponse>('/auth/login/phone', {
+    firebase_id_token: firebaseIdToken,
+    phone: phoneNumber,
+  });
+}
+
 // Storage Functions
 export function saveAuthToStorage(user: User, token: string): void {
   if (typeof window !== 'undefined') {
