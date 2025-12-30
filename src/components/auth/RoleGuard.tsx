@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Role } from '@/types/auth';
+import { Role, hasRole, getPrimaryRole } from '@/types/auth';
 import { getRedirectPath } from '@/lib/auth';
 
 interface RoleGuardProps {
@@ -16,6 +16,11 @@ export function RoleGuard({ children, allowedRoles, fallbackPath }: RoleGuardPro
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
+  const userHasAllowedRole = () => {
+    if (!user) return false;
+    return allowedRoles.some((role) => hasRole(user, role));
+  };
+
   useEffect(() => {
     if (isLoading) return;
 
@@ -24,9 +29,10 @@ export function RoleGuard({ children, allowedRoles, fallbackPath }: RoleGuardPro
       return;
     }
 
-    if (user && !allowedRoles.includes(user.role)) {
-      // Redirect to appropriate portal based on user's role
-      const redirectPath = fallbackPath || getRedirectPath(user.role);
+    if (user && !userHasAllowedRole()) {
+      // Redirect to appropriate portal based on user's primary role
+      const primaryRole = getPrimaryRole(user);
+      const redirectPath = fallbackPath || getRedirectPath(primaryRole);
       router.replace(redirectPath);
     }
   }, [isAuthenticated, isLoading, user, allowedRoles, fallbackPath, router]);
@@ -49,7 +55,7 @@ export function RoleGuard({ children, allowedRoles, fallbackPath }: RoleGuardPro
   }
 
   // Wrong role
-  if (user && !allowedRoles.includes(user.role)) {
+  if (user && !userHasAllowedRole()) {
     return null;
   }
 

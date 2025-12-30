@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PanelLeft, LogOut } from "lucide-react";
+import { PanelLeft, LogOut, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { getPrimaryRole, hasRole } from "@/types/auth";
 
 interface HeaderProps {
   isCollapsed: boolean;
@@ -13,11 +14,21 @@ interface HeaderProps {
 
 export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const { user, logout } = useAuth();
+
+  // Mock notifications data
+  const notifications = [
+    { id: 1, title: "New vendor application", message: "ABC Plumbing submitted an application", time: "5 min ago", unread: true },
+    { id: 2, title: "Payment processed", message: "Payout of $2,500 completed", time: "1 hour ago", unread: true },
+    { id: 3, title: "New review", message: "5-star review for Quick Fix Services", time: "3 hours ago", unread: false },
+  ];
+
+  const unreadCount = notifications.filter(n => n.unread).length;
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 
@@ -30,15 +41,25 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
       .slice(0, 2);
   };
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case "super_admin":
+  const getRoleBadge = () => {
+    const primaryRole = getPrimaryRole(user);
+    switch (primaryRole) {
+      case "admin":
         return "Admin";
       case "vendor":
         return "Vendor";
+      case "technician":
+        return "Technician";
       default:
-        return role;
+        return primaryRole || "User";
     }
+  };
+
+  const getNotificationsPath = () => {
+    if (hasRole(user, "vendor")) {
+      return "/vendor/notifications";
+    }
+    return "/admin/notifications";
   };
 
   return (
@@ -67,11 +88,83 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
           </button>
         </div>
 
-        {/* Right side - User Avatar */}
-        <div className="flex items-center space-x-1 sm:space-x-2">
+        {/* Right side - Notifications & User Avatar */}
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Notifications Bell */}
           <div className="relative">
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setShowUserMenu(false);
+              }}
+              className="p-2 hover:bg-[#E4E4E8] rounded-[5px] relative"
+            >
+              <Bell className="h-5 w-5 text-gray-600" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowNotifications(false)}
+                />
+                <div className="absolute right-0 z-50 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg">
+                  <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="text-xs text-gray-500">{unreadCount} unread</span>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
+                          notification.unread ? "bg-blue-50/50" : ""
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {notification.unread && (
+                            <span className="mt-1.5 h-2 w-2 bg-blue-500 rounded-full flex-shrink-0" />
+                          )}
+                          <div className={notification.unread ? "" : "ml-5"}>
+                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{notification.message}</p>
+                            <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="px-4 py-2 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setShowNotifications(false);
+                        router.push(getNotificationsPath());
+                      }}
+                      className="text-sm text-gray-600 hover:text-gray-900 font-medium w-full text-center"
+                    >
+                      View all notifications
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* User Avatar */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowUserMenu(!showUserMenu);
+                setShowNotifications(false);
+              }}
               className="h-7 w-7 sm:h-8 sm:w-8 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
             >
               <span className="text-white font-medium text-xs sm:text-sm">
@@ -90,11 +183,9 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
                   <div className="px-4 py-2 border-b border-gray-200">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium">{user?.name || "User"}</p>
-                      {user?.role && (
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
-                          {getRoleBadge(user.role)}
-                        </span>
-                      )}
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                        {getRoleBadge()}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-500">{user?.email || ""}</p>
                   </div>
