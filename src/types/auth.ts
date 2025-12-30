@@ -94,6 +94,13 @@ export interface RegisterCredentials {
   landline?: string;
   website?: string;
   establishment?: string;
+  // Primary Contact
+  contact_first_name?: string;
+  contact_last_name?: string;
+  designation?: string;
+  contact_email?: string;
+  mobile_number?: string;
+  emirates_id?: string;
   // Services & Service Areas
   category_id?: string;
   service_area_ids?: string[];
