@@ -240,7 +240,7 @@ export default function ServicesPage() {
                         {minPrice !== null && (
                           <span className="flex items-center gap-1 text-gray-600">
                             <DollarSign className="h-4 w-4" />
-                            From ${minPrice.toFixed(2)}
+                            From {minPrice.toFixed(2)} AED
                           </span>
                         )}
                         {maxDuration !== null && (
