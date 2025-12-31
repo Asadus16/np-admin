@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Store,
-  Wrench,
   FolderOpen,
   DollarSign,
   TrendingUp,
@@ -13,6 +12,11 @@ import {
   CheckCircle,
   XCircle,
   Users,
+  ShoppingCart,
+  RotateCcw,
+  AlertTriangle,
+  Wallet,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -75,6 +79,19 @@ const recentTransactions = [
   { id: 4, vendor: "Green Thumb Gardens", amount: "$45", type: "Fee" as const, date: "2024-12-25" },
 ];
 
+const pendingRefunds = [
+  { id: "REF-001", orderId: "ORD-1234", customer: "John Smith", vendor: "Quick Fix Plumbing", amount: "$150", type: "Partial", reason: "Service incomplete", status: "pending", date: "2024-12-28" },
+  { id: "REF-002", orderId: "ORD-1230", customer: "Sarah Johnson", vendor: "Spark Electric Co", amount: "$350", type: "Full", reason: "No show", status: "pending", date: "2024-12-27" },
+  { id: "REF-003", orderId: "ORD-1225", customer: "Mike Brown", vendor: "Cool Air HVAC", amount: "$85", type: "Partial", reason: "Quality issue", status: "pending", date: "2024-12-26" },
+];
+
+const quickStats = {
+  pendingApprovals: 12,
+  pendingRefunds: 8,
+  payoutsDue: 15,
+  openDisputes: 3,
+};
+
 // Custom tooltip styles
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
   if (active && payload && payload.length) {
@@ -112,6 +129,14 @@ export default function AdminDashboardPage() {
   // Static stats cards
   const statsCards = [
     {
+      name: "Total Customers",
+      value: "2,845",
+      change: "+18%",
+      trend: "up" as const,
+      icon: Users,
+      href: "/admin/customers",
+    },
+    {
       name: "Total Vendors",
       value: "156",
       change: "+12%",
@@ -120,24 +145,16 @@ export default function AdminDashboardPage() {
       href: "/admin/vendors",
     },
     {
-      name: "Active Technicians",
-      value: "89",
-      change: "+8%",
+      name: "Total Orders",
+      value: "1,247",
+      change: "+24%",
       trend: "up" as const,
-      icon: Wrench,
-      href: "/admin/technicians",
+      icon: ShoppingCart,
+      href: "/admin/orders",
     },
     {
-      name: "Categories",
-      value: "24",
-      change: "+2",
-      trend: "up" as const,
-      icon: FolderOpen,
-      href: "/admin/categories",
-    },
-    {
-      name: "Monthly Revenue",
-      value: formatCurrency(58000),
+      name: "Total Revenue",
+      value: formatCurrency(284500),
       change: "+15%",
       trend: "up" as const,
       icon: DollarSign,
@@ -487,6 +504,129 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Link
+          href="/admin/vendors/applications"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <FileText className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pendingApprovals}</p>
+              <p className="text-xs text-gray-500">Pending Approvals</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/refunds"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <RotateCcw className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pendingRefunds}</p>
+              <p className="text-xs text-gray-500">Pending Refunds</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/payouts"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <Wallet className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.payoutsDue}</p>
+              <p className="text-xs text-gray-500">Payouts Due</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/refunds?status=dispute"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.openDisputes}</p>
+              <p className="text-xs text-gray-500">Open Disputes</p>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Refund Requests Widget */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Pending Refund Requests</h3>
+            <p className="text-sm text-gray-500">Requests awaiting approval</p>
+          </div>
+          <Link
+            href="/admin/refunds"
+            className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
+          >
+            View all <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Refund ID</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Order</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Customer</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Vendor</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Type</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Reason</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Date</th>
+                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {pendingRefunds.map((refund) => (
+                <tr key={refund.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.id}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{refund.orderId}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{refund.customer}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{refund.vendor}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.amount}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                      refund.type === "Full" ? "bg-gray-900 text-white" : "bg-gray-200 text-gray-700"
+                    }`}>
+                      {refund.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{refund.reason}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{refund.date}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button className="px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded hover:bg-gray-800">
+                        Approve
+                      </button>
+                      <button className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
@@ -506,14 +646,14 @@ export default function AdminDashboardPage() {
             Add Category
           </Link>
           <Link
-            href="/admin/vendors/applications"
+            href="/admin/coupons/add"
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
-            <Users className="h-4 w-4 mr-2" />
-            Review Applications
+            <FileText className="h-4 w-4 mr-2" />
+            Create Coupon
           </Link>
           <Link
-            href="/admin/transactions"
+            href="/admin/payouts"
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             <DollarSign className="h-4 w-4 mr-2" />

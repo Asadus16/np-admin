@@ -16,6 +16,13 @@ import {
   Store,
   Wrench,
   MapPin,
+  Users,
+  ShoppingCart,
+  RotateCcw,
+  Tag,
+  Wallet,
+  BarChart3,
+  Settings,
 } from "lucide-react";
 
 interface AdminSidebarProps {
@@ -38,6 +45,40 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
+    name: "Customers",
+    href: "/admin/customers",
+    icon: <Users className="h-4 w-4" />,
+  },
+  {
+    name: "Vendors",
+    icon: <Store className="h-4 w-4" />,
+    children: [
+      { name: "Applications", href: "/admin/vendors/applications" },
+      { name: "All Vendors", href: "/admin/vendors" },
+      { name: "Add Vendor", href: "/admin/vendors/add" },
+    ],
+  },
+  {
+    name: "Orders",
+    href: "/admin/orders",
+    icon: <ShoppingCart className="h-4 w-4" />,
+  },
+  {
+    name: "Refunds",
+    href: "/admin/refunds",
+    icon: <RotateCcw className="h-4 w-4" />,
+  },
+  {
+    name: "Coupons",
+    href: "/admin/coupons",
+    icon: <Tag className="h-4 w-4" />,
+  },
+  {
+    name: "Payouts",
+    href: "/admin/payouts",
+    icon: <Wallet className="h-4 w-4" />,
+  },
+  {
     name: "Categories",
     icon: <FolderOpen className="h-4 w-4" />,
     children: [
@@ -51,15 +92,6 @@ const navigation: NavItem[] = [
     children: [
       { name: "All Service Areas", href: "/admin/service-areas" },
       { name: "Add Service Area", href: "/admin/service-areas/add" },
-    ],
-  },
-  {
-    name: "Vendors",
-    icon: <Store className="h-4 w-4" />,
-    children: [
-      { name: "Applications", href: "/admin/vendors/applications" },
-      { name: "All Vendors", href: "/admin/vendors" },
-      { name: "Add Vendor", href: "/admin/vendors/add" },
     ],
   },
   {
@@ -87,18 +119,27 @@ const navigation: NavItem[] = [
     ],
   },
   {
+    name: "Reports",
+    href: "/admin/reports",
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
     name: "Messages",
     href: "/admin/messages",
     icon: <MessageSquare className="h-4 w-4" />,
   },
   {
-    name: "Audit & Settings",
+    name: "Settings",
+    href: "/admin/settings",
+    icon: <Settings className="h-4 w-4" />,
+  },
+  {
+    name: "Audit & Security",
     icon: <Shield className="h-4 w-4" />,
     children: [
       { name: "Audit Logs", href: "/admin/audit-logs" },
       { name: "Roles & Permissions", href: "/admin/roles" },
       { name: "Organization", href: "/admin/organization" },
-      { name: "Security", href: "/admin/security" },
     ],
   },
 ];
@@ -190,7 +231,7 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
         </div>
 
         {/* Navigation */}
-        <nav className="px-2" style={{ padding: "10px" }}>
+        <nav className="px-2 overflow-y-auto h-[calc(100vh-80px)]" style={{ padding: "10px" }}>
           <div className="space-y-1">
             {navigation.map((item) => (
               <div key={item.name}>
