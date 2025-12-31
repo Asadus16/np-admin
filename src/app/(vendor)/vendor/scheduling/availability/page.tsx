@@ -1,17 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Clock, Plus, Trash2 } from "lucide-react";
-
-const initialSchedule = {
-  monday: { enabled: true, slots: [{ start: "09:00", end: "17:00" }] },
-  tuesday: { enabled: true, slots: [{ start: "09:00", end: "17:00" }] },
-  wednesday: { enabled: true, slots: [{ start: "09:00", end: "17:00" }] },
-  thursday: { enabled: true, slots: [{ start: "09:00", end: "17:00" }] },
-  friday: { enabled: true, slots: [{ start: "09:00", end: "17:00" }] },
-  saturday: { enabled: true, slots: [{ start: "10:00", end: "14:00" }] },
-  sunday: { enabled: false, slots: [] },
-};
+import { useState, useEffect } from "react";
+import { Clock, Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { 
+  getCompanyHours, 
+  createOrUpdateCompanyHours 
+} from "@/lib/companyHours";
+import { CompanyHour, DayOfWeek, CompanyHourSlotInput } from "@/types/companyHours";
+import { ApiException } from "@/lib/auth";
+import { Button } from "@/components/ui/Button";
 
 const dayNames: Record<string, string> = {
   monday: "Monday",
@@ -23,11 +20,81 @@ const dayNames: Record<string, string> = {
   sunday: "Sunday",
 };
 
-export default function AvailabilityPage() {
-  const [schedule, setSchedule] = useState(initialSchedule);
-  const [isLoading, setIsLoading] = useState(false);
+const dayOrder: DayOfWeek[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
 
-  const toggleDay = (day: keyof typeof schedule) => {
+interface DaySchedule {
+  enabled: boolean;
+  slots: { start: string; end: string }[];
+  id?: string;
+}
+
+type ScheduleState = Record<DayOfWeek, DaySchedule>;
+
+const defaultSchedule: ScheduleState = {
+  monday: { enabled: false, slots: [] },
+  tuesday: { enabled: false, slots: [] },
+  wednesday: { enabled: false, slots: [] },
+  thursday: { enabled: false, slots: [] },
+  friday: { enabled: false, slots: [] },
+  saturday: { enabled: false, slots: [] },
+  sunday: { enabled: false, slots: [] },
+};
+
+export default function AvailabilityPage() {
+  const [schedule, setSchedule] = useState<ScheduleState>(defaultSchedule);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  // Load company hours on mount
+  useEffect(() => {
+    loadCompanyHours();
+  }, []);
+
+  const loadCompanyHours = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await getCompanyHours();
+      const hours = response.data;
+
+      // Transform API data to UI format
+      const newSchedule: ScheduleState = { ...defaultSchedule };
+      
+      hours.forEach((hour: CompanyHour) => {
+        newSchedule[hour.day] = {
+          enabled: hour.is_available,
+          slots: hour.slots.map((slot) => ({
+            start: slot.start_time,
+            end: slot.end_time,
+          })),
+          id: hour.id,
+        };
+      });
+
+      setSchedule(newSchedule);
+    } catch (err) {
+      if (err instanceof ApiException) {
+        setError(err.message || "Failed to load company hours");
+      } else {
+        setError("An unexpected error occurred");
+      }
+      console.error("Error loading company hours:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleDay = (day: DayOfWeek) => {
     setSchedule({
       ...schedule,
       [day]: {
@@ -36,9 +103,11 @@ export default function AvailabilityPage() {
         slots: !schedule[day].enabled ? [{ start: "09:00", end: "17:00" }] : [],
       },
     });
+    setError(null);
+    setSuccess(null);
   };
 
-  const addSlot = (day: keyof typeof schedule) => {
+  const addSlot = (day: DayOfWeek) => {
     setSchedule({
       ...schedule,
       [day]: {
@@ -46,9 +115,11 @@ export default function AvailabilityPage() {
         slots: [...schedule[day].slots, { start: "09:00", end: "17:00" }],
       },
     });
+    setError(null);
+    setSuccess(null);
   };
 
-  const removeSlot = (day: keyof typeof schedule, index: number) => {
+  const removeSlot = (day: DayOfWeek, index: number) => {
     const newSlots = schedule[day].slots.filter((_, i) => i !== index);
     setSchedule({
       ...schedule,
@@ -58,21 +129,82 @@ export default function AvailabilityPage() {
         enabled: newSlots.length > 0,
       },
     });
+    setError(null);
+    setSuccess(null);
   };
 
-  const updateSlot = (day: keyof typeof schedule, index: number, field: "start" | "end", value: string) => {
+  const updateSlot = (
+    day: DayOfWeek,
+    index: number,
+    field: "start" | "end",
+    value: string
+  ) => {
     const newSlots = [...schedule[day].slots];
     newSlots[index] = { ...newSlots[index], [field]: value };
     setSchedule({
       ...schedule,
       [day]: { ...schedule[day], slots: newSlots },
     });
+    setError(null);
+    setSuccess(null);
   };
 
-  const handleSave = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 1000);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Transform UI data to API format
+      const hours = dayOrder.map((day) => {
+        const daySchedule = schedule[day];
+        const slots: CompanyHourSlotInput[] = daySchedule.enabled
+          ? daySchedule.slots.map((slot) => ({
+              start_time: slot.start,
+              end_time: slot.end,
+            }))
+          : [];
+
+        return {
+          day,
+          is_available: daySchedule.enabled,
+          slots,
+        };
+      });
+
+      await createOrUpdateCompanyHours({ hours });
+      setSuccess("Company hours saved successfully");
+      
+      // Reload to get updated IDs
+      await loadCompanyHours();
+    } catch (err) {
+      if (err instanceof ApiException) {
+        const errorMessage = err.errors
+          ? Object.values(err.errors).flat().join(", ")
+          : err.message || "Failed to save company hours";
+        setError(errorMessage);
+      } else {
+        setError("An unexpected error occurred");
+      }
+      console.error("Error saving company hours:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Availability</h1>
+          <p className="text-sm text-gray-500 mt-1">Set your working hours for each day of the week</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <p className="text-gray-500">Loading company hours...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -81,12 +213,34 @@ export default function AvailabilityPage() {
         <p className="text-sm text-gray-500 mt-1">Set your working hours for each day of the week</p>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">Error</p>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {success && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+          <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">Success</p>
+            <p className="text-sm text-green-700 mt-1">{success}</p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-gray-200 rounded-lg">
         <div className="p-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Weekly Schedule</h2>
         </div>
         <div className="divide-y divide-gray-200">
-          {(Object.keys(schedule) as Array<keyof typeof schedule>).map((day) => (
+          {dayOrder.map((day) => (
             <div key={day} className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -155,21 +309,17 @@ export default function AvailabilityPage() {
           ))}
         </div>
         <div className="p-4 border-t border-gray-200 flex justify-end">
-          <button
+          <Button
             onClick={handleSave}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+            disabled={isSaving}
+            variant="primary"
           >
-            {isLoading ? "Saving..." : "Save Changes"}
-          </button>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-2">Time Zone</h3>
-        <p className="text-sm text-gray-600">Pacific Time (PT) - Los Angeles</p>
-        <button className="text-sm text-gray-600 hover:text-gray-900 underline mt-1">Change</button>
-      </div>
+     
     </div>
   );
 }
