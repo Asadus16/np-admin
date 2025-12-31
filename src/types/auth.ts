@@ -118,6 +118,7 @@ export interface RegisterCredentials {
   emirates_id_number?: string;
   emirates_id_front?: File;
   emirates_id_back?: File;
+  address_label?: string;
   address_street?: string;
   address_building?: string;
   address_apartment?: string;
@@ -125,6 +126,12 @@ export interface RegisterCredentials {
   address_emirate?: string;
   address_latitude?: number;
   address_longitude?: number;
+  // Payment (optional - only if not skipped)
+  card_number?: string;
+  card_expiry?: string;
+  card_cvv?: string;
+  card_name?: string;
+  skip_payment?: boolean;
 }
 
 export interface AuthResponse {
