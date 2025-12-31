@@ -213,7 +213,7 @@ export function getRedirectPath(role: Role | null): string {
     case 'customer':
       return '/customer';
     case 'technician':
-      return '/vendor'; // Technicians use vendor portal
+      return '/technician';
     default:
       // Default to vendor if no role found (instead of login to prevent loop)
       return '/vendor';

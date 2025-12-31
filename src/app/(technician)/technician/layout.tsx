@@ -1,9 +1,16 @@
+"use client";
+
 import { TechnicianLayout } from "@/components/layout/technician/TechnicianLayout";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 
 export default function TechnicianRootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <TechnicianLayout>{children}</TechnicianLayout>;
+  return (
+    <RoleGuard allowedRoles={["technician"]}>
+      <TechnicianLayout>{children}</TechnicianLayout>
+    </RoleGuard>
+  );
 }
