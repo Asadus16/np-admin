@@ -60,10 +60,8 @@ const navigation: NavItem[] = [
   },
   {
     name: "Orders",
+    href: "/vendor/orders",
     icon: <ClipboardList className="h-4 w-4" />,
-    children: [
-      { name: "Inbox", href: "/vendor/orders" },
-    ],
   },
   {
     name: "Scheduling",
@@ -123,6 +121,7 @@ const navigation: NavItem[] = [
       { name: "Company", href: "/vendor/settings" },
       { name: "Service Areas", href: "/vendor/settings/service-areas" },
       { name: "Taxes & Fees", href: "/vendor/settings/taxes" },
+      { name: "Subscription & Billing", href: "/vendor/settings/subscription" },
       { name: "Preferences", href: "/vendor/settings/preferences" },
     ],
   },
