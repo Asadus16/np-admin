@@ -624,13 +624,90 @@ export default function SignupPage() {
     setGeneralError("");
 
     try {
-      // Static implementation - simulate successful registration
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await register({
+        first_name: customerFormData.firstName,
+        last_name: customerFormData.lastName,
+        email: customerFormData.email,
+        password: customerFormData.password,
+        password_confirmation: customerFormData.passwordConfirmation,
+        role: "customer",
+        // Customer-specific fields
+        phone: customerFormData.phone || undefined,
+        nationality: customerFormData.nationality || undefined,
+        // Emirates ID
+        emirates_id_number: customerFormData.emiratesIdNumber || undefined,
+        emirates_id_front: customerFormData.emiratesIdFront || undefined,
+        emirates_id_back: customerFormData.emiratesIdBack || undefined,
+        // Address
+        address_label: customerFormData.addressLabel || undefined,
+        address_street: customerFormData.street || undefined,
+        address_building: customerFormData.building || undefined,
+        address_apartment: customerFormData.apartment || undefined,
+        address_city: customerFormData.city || undefined,
+        address_emirate: customerFormData.emirate || undefined,
+        address_latitude: customerFormData.latitude || undefined,
+        address_longitude: customerFormData.longitude || undefined,
+        // Payment (optional)
+        skip_payment: customerFormData.skipPayment,
+        card_number: !customerFormData.skipPayment ? customerFormData.cardNumber || undefined : undefined,
+        card_expiry: !customerFormData.skipPayment ? customerFormData.cardExpiry || undefined : undefined,
+        card_cvv: !customerFormData.skipPayment ? customerFormData.cardCvv || undefined : undefined,
+        card_name: !customerFormData.skipPayment ? customerFormData.cardName || undefined : undefined,
+      });
 
       clearCustomerSavedProgress();
       setIsCustomerSubmitted(true);
     } catch (error) {
       const apiError = error as ApiError;
+      if (apiError?.errors) {
+        const newErrors: Record<string, string> = {};
+        const fieldMapping: Record<string, string> = {
+          first_name: "firstName",
+          last_name: "lastName",
+          email: "email",
+          password: "password",
+          phone: "phone",
+          nationality: "nationality",
+          emirates_id_number: "emiratesIdNumber",
+          emirates_id_front: "emiratesIdFront",
+          emirates_id_back: "emiratesIdBack",
+          address_label: "addressLabel",
+          address_street: "street",
+          address_building: "building",
+          address_apartment: "apartment",
+          address_city: "city",
+          address_emirate: "emirate",
+          address_latitude: "latitude",
+          address_longitude: "longitude",
+          card_number: "cardNumber",
+          card_expiry: "cardExpiry",
+          card_cvv: "cardCvv",
+          card_name: "cardName",
+        };
+
+        Object.entries(apiError.errors).forEach(([key, messages]) => {
+          const frontendField = fieldMapping[key] || key;
+          if (Array.isArray(messages)) {
+            newErrors[frontendField] = messages[0];
+          } else {
+            newErrors[frontendField] = messages;
+          }
+        });
+        setCustomerFieldErrors(newErrors);
+
+        // Navigate to the step with the first error
+        const errorSteps: Record<string, number> = {
+          firstName: 0, lastName: 0, nationality: 0, email: 0, phone: 0, password: 0,
+          emiratesIdNumber: 1, emiratesIdFront: 1, emiratesIdBack: 1,
+          addressLabel: 2, street: 2, building: 2, apartment: 2, city: 2, emirate: 2, latitude: 2, longitude: 2,
+          cardNumber: 4, cardExpiry: 4, cardCvv: 4, cardName: 4,
+        };
+
+        const firstErrorKey = Object.keys(newErrors)[0];
+        if (firstErrorKey && errorSteps[firstErrorKey] !== undefined) {
+          setCustomerStep(errorSteps[firstErrorKey]);
+        }
+      }
       setGeneralError(apiError?.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);

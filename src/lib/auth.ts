@@ -15,6 +15,10 @@ export async function apiRegister(credentials: RegisterCredentials): Promise<Aut
   if (credentials.role === 'vendor') {
     return apiRegisterVendor(credentials);
   }
+  // If customer registration with files, use FormData
+  if (credentials.role === 'customer') {
+    return apiRegisterCustomer(credentials);
+  }
   return api.post<AuthResponse>('/auth/register', credentials);
 }
 
@@ -68,6 +72,67 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
   if (credentials.iban) formData.append('iban', credentials.iban);
   if (credentials.swift_code) formData.append('swift_code', credentials.swift_code);
   if (credentials.trn) formData.append('trn', credentials.trn);
+
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+    },
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new ApiException(
+      data.message || 'Registration failed',
+      response.status,
+      data.errors
+    );
+  }
+
+  return data as AuthResponse;
+}
+
+// Customer registration with FormData for file uploads
+async function apiRegisterCustomer(credentials: RegisterCredentials): Promise<AuthResponse> {
+  const formData = new FormData();
+
+  // Basic auth fields
+  formData.append('first_name', credentials.first_name);
+  formData.append('last_name', credentials.last_name);
+  formData.append('email', credentials.email);
+  formData.append('password', credentials.password);
+  formData.append('password_confirmation', credentials.password_confirmation);
+  formData.append('role', 'customer');
+
+  // Customer-specific fields
+  if (credentials.phone) formData.append('phone', credentials.phone);
+  if (credentials.nationality) formData.append('nationality', credentials.nationality);
+
+  // Emirates ID
+  if (credentials.emirates_id_number) formData.append('emirates_id_number', credentials.emirates_id_number);
+  if (credentials.emirates_id_front) formData.append('emirates_id_front', credentials.emirates_id_front);
+  if (credentials.emirates_id_back) formData.append('emirates_id_back', credentials.emirates_id_back);
+
+  // Address
+  if (credentials.address_label) formData.append('address_label', credentials.address_label);
+  if (credentials.address_street) formData.append('address_street', credentials.address_street);
+  if (credentials.address_building) formData.append('address_building', credentials.address_building);
+  if (credentials.address_apartment) formData.append('address_apartment', credentials.address_apartment);
+  if (credentials.address_city) formData.append('address_city', credentials.address_city);
+  if (credentials.address_emirate) formData.append('address_emirate', credentials.address_emirate);
+  if (credentials.address_latitude) formData.append('address_latitude', credentials.address_latitude.toString());
+  if (credentials.address_longitude) formData.append('address_longitude', credentials.address_longitude.toString());
+
+  // Payment (optional - only if not skipped)
+  if (credentials.skip_payment !== undefined) formData.append('skip_payment', credentials.skip_payment ? '1' : '0');
+  if (!credentials.skip_payment) {
+    if (credentials.card_number) formData.append('card_number', credentials.card_number);
+    if (credentials.card_expiry) formData.append('card_expiry', credentials.card_expiry);
+    if (credentials.card_cvv) formData.append('card_cvv', credentials.card_cvv);
+    if (credentials.card_name) formData.append('card_name', credentials.card_name);
+  }
 
   const response = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
