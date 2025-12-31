@@ -8,24 +8,16 @@ import {
   LayoutDashboard,
   ChevronDown,
   X,
-  FolderOpen,
-  CreditCard,
-  Receipt,
+  ClipboardList,
+  Calendar,
   MessageSquare,
-  Shield,
-  Store,
-  Wrench,
-  MapPin,
-  Users,
-  ShoppingCart,
-  RotateCcw,
-  Tag,
-  Wallet,
-  BarChart3,
+  Bell,
+  User,
+  History,
   Settings,
 } from "lucide-react";
 
-interface AdminSidebarProps {
+interface TechnicianSidebarProps {
   isCollapsed: boolean;
   isMobileOpen: boolean;
   onCloseMobile: () => void;
@@ -41,110 +33,48 @@ interface NavItem {
 const navigation: NavItem[] = [
   {
     name: "Dashboard",
-    href: "/admin",
+    href: "/technician",
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
-    name: "Customers",
-    href: "/admin/customers",
-    icon: <Users className="h-4 w-4" />,
+    name: "Jobs",
+    href: "/technician/jobs",
+    icon: <ClipboardList className="h-4 w-4" />,
   },
   {
-    name: "Vendors",
-    icon: <Store className="h-4 w-4" />,
+    name: "Scheduling",
+    icon: <Calendar className="h-4 w-4" />,
     children: [
-      { name: "Applications", href: "/admin/vendors/applications" },
-      { name: "All Vendors", href: "/admin/vendors" },
-      { name: "Add Vendor", href: "/admin/vendors/add" },
+      { name: "Calendar", href: "/technician/scheduling" },
+      { name: "Availability", href: "/technician/scheduling/availability" },
     ],
-  },
-  {
-    name: "Orders",
-    href: "/admin/orders",
-    icon: <ShoppingCart className="h-4 w-4" />,
-  },
-  {
-    name: "Refunds",
-    href: "/admin/refunds",
-    icon: <RotateCcw className="h-4 w-4" />,
-  },
-  {
-    name: "Coupons",
-    href: "/admin/coupons",
-    icon: <Tag className="h-4 w-4" />,
-  },
-  {
-    name: "Payouts",
-    href: "/admin/payouts",
-    icon: <Wallet className="h-4 w-4" />,
-  },
-  {
-    name: "Categories",
-    icon: <FolderOpen className="h-4 w-4" />,
-    children: [
-      { name: "All Categories", href: "/admin/categories" },
-      { name: "Add Category", href: "/admin/categories/add" },
-    ],
-  },
-  {
-    name: "Service Areas",
-    icon: <MapPin className="h-4 w-4" />,
-    children: [
-      { name: "All Service Areas", href: "/admin/service-areas" },
-      { name: "Add Service Area", href: "/admin/service-areas/add" },
-    ],
-  },
-  {
-    name: "Technicians",
-    icon: <Wrench className="h-4 w-4" />,
-    children: [
-      { name: "All Technicians", href: "/admin/technicians" },
-    ],
-  },
-  {
-    name: "Billing & Plans",
-    icon: <CreditCard className="h-4 w-4" />,
-    children: [
-      { name: "Usage & Limits", href: "/admin/billing" },
-      { name: "Feature Flags", href: "/admin/billing/feature-flags" },
-    ],
-  },
-  {
-    name: "Transactions",
-    icon: <Receipt className="h-4 w-4" />,
-    children: [
-      { name: "Payout Runs", href: "/admin/transactions" },
-      { name: "Fees", href: "/admin/transactions/fees" },
-      { name: "Adjustments", href: "/admin/transactions/adjustments" },
-    ],
-  },
-  {
-    name: "Reports",
-    href: "/admin/reports",
-    icon: <BarChart3 className="h-4 w-4" />,
   },
   {
     name: "Messages",
-    href: "/admin/messages",
+    href: "/technician/messages",
     icon: <MessageSquare className="h-4 w-4" />,
   },
   {
-    name: "Settings",
-    href: "/admin/settings",
-    icon: <Settings className="h-4 w-4" />,
+    name: "Notifications",
+    href: "/technician/notifications",
+    icon: <Bell className="h-4 w-4" />,
   },
   {
-    name: "Audit & Security",
-    icon: <Shield className="h-4 w-4" />,
+    name: "History",
+    href: "/technician/history",
+    icon: <History className="h-4 w-4" />,
+  },
+  {
+    name: "Profile",
+    icon: <User className="h-4 w-4" />,
     children: [
-      { name: "Audit Logs", href: "/admin/audit-logs" },
-      { name: "Roles & Permissions", href: "/admin/roles" },
-      { name: "Organization", href: "/admin/organization" },
+      { name: "My Profile", href: "/technician/profile" },
+      { name: "Security", href: "/technician/profile/security" },
     ],
   },
 ];
 
-export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
+export function TechnicianSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: TechnicianSidebarProps) {
   const pathname = usePathname();
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
@@ -199,7 +129,7 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
           }`}
         >
           {!isCollapsed && (
-            <Link href="/admin" className="flex items-center">
+            <Link href="/technician" className="flex items-center">
               <Image
                 src="/logos/Logo.svg"
                 alt="NoProblem"
@@ -211,7 +141,7 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
             </Link>
           )}
           {isCollapsed && (
-            <Link href="/admin" className="flex items-center justify-center">
+            <Link href="/technician" className="flex items-center justify-center">
               <Image
                 src="/logos/Logo.svg"
                 alt="NP"

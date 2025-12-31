@@ -71,6 +71,9 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
     if (hasRole(user, "vendor")) {
       return "/vendor/notifications";
     }
+    if (hasRole(user, "technician")) {
+      return "/technician/notifications";
+    }
     return "/admin/notifications";
   };
 
