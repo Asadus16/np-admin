@@ -585,10 +585,70 @@ export default function SignupPage() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const validateCustomerStep = (_step: number): boolean => {
-    // Validation disabled for testing - no backend yet
-    return true;
+  const validateCustomerStep = (step: number): boolean => {
+    const errors: Record<string, string> = {};
+
+    switch (step) {
+      case 0: // Account
+        if (!customerFormData.firstName.trim()) errors.firstName = "First name is required";
+        if (!customerFormData.lastName.trim()) errors.lastName = "Last name is required";
+        if (!customerFormData.nationality) errors.nationality = "Nationality is required";
+        if (!customerFormData.email.trim()) errors.email = "Email is required";
+        else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerFormData.email)) {
+          errors.email = "Please enter a valid email";
+        }
+        if (!customerFormData.phone.trim()) errors.phone = "Phone number is required";
+        if (!customerFormData.password) errors.password = "Password is required";
+        else if (customerFormData.password.length < 8) {
+          errors.password = "Password must be at least 8 characters";
+        }
+        if (!customerFormData.passwordConfirmation) {
+          errors.passwordConfirmation = "Please confirm your password";
+        } else if (customerFormData.password !== customerFormData.passwordConfirmation) {
+          errors.passwordConfirmation = "Passwords do not match";
+        }
+        break;
+
+      case 1: // Emirates ID
+        if (!customerFormData.emiratesIdNumber.trim()) {
+          errors.emiratesIdNumber = "Emirates ID number is required";
+        }
+        if (!customerFormData.emiratesIdFront) {
+          errors.emiratesIdFront = "Emirates ID front image is required";
+        }
+        if (!customerFormData.emiratesIdBack) {
+          errors.emiratesIdBack = "Emirates ID back image is required";
+        }
+        break;
+
+      case 2: // Location
+        if (!customerFormData.street.trim()) errors.street = "Street address is required";
+        if (!customerFormData.city.trim()) errors.city = "City is required";
+        if (!customerFormData.emirate) errors.emirate = "Emirate is required";
+        break;
+
+      case 3: // Phone Verification
+        // Phone verification is optional - can proceed without it
+        break;
+
+      case 4: // Payment
+        if (!customerFormData.skipPayment) {
+          if (!customerFormData.cardNumber || customerFormData.cardNumber.length !== 16) {
+            errors.cardNumber = "Valid 16-digit card number is required";
+          }
+          if (!customerFormData.cardName.trim()) errors.cardName = "Cardholder name is required";
+          if (!customerFormData.cardExpiry || !/^\d{2}\/\d{2}$/.test(customerFormData.cardExpiry)) {
+            errors.cardExpiry = "Valid expiry date (MM/YY) is required";
+          }
+          if (!customerFormData.cardCvv || customerFormData.cardCvv.length < 3) {
+            errors.cardCvv = "Valid CVV is required";
+          }
+        }
+        break;
+    }
+
+    setCustomerFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleCustomerNext = async () => {
@@ -798,10 +858,10 @@ export default function SignupPage() {
       </p>
       <div className="flex justify-center gap-4">
         <Link
-          href="/login"
+          href="/customer"
           className="px-6 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
         >
-          Go to Login
+          Go to Dashboard
         </Link>
       </div>
     </div>

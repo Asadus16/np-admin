@@ -21,6 +21,11 @@ export interface User {
   created_at?: string;
   updated_at?: string;
   avatar?: string;
+  // Company info (for vendors and technicians)
+  company?: {
+    id: string;
+    name: string;
+  } | null;
   // Vendor-specific fields
   vendorId?: string;
   vendorName?: string;

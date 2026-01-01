@@ -104,37 +104,36 @@ async function apiRegisterCustomer(credentials: RegisterCredentials): Promise<Au
   formData.append('email', credentials.email);
   formData.append('password', credentials.password);
   formData.append('password_confirmation', credentials.password_confirmation);
-  formData.append('role', 'customer');
 
   // Customer-specific fields
   if (credentials.phone) formData.append('phone', credentials.phone);
   if (credentials.nationality) formData.append('nationality', credentials.nationality);
 
-  // Emirates ID
-  if (credentials.emirates_id_number) formData.append('emirates_id_number', credentials.emirates_id_number);
+  // Emirates ID (backend expects 'emirates_id' not 'emirates_id_number')
+  if (credentials.emirates_id_number) formData.append('emirates_id', credentials.emirates_id_number);
   if (credentials.emirates_id_front) formData.append('emirates_id_front', credentials.emirates_id_front);
   if (credentials.emirates_id_back) formData.append('emirates_id_back', credentials.emirates_id_back);
 
-  // Address
-  if (credentials.address_label) formData.append('address_label', credentials.address_label);
-  if (credentials.address_street) formData.append('address_street', credentials.address_street);
-  if (credentials.address_building) formData.append('address_building', credentials.address_building);
-  if (credentials.address_apartment) formData.append('address_apartment', credentials.address_apartment);
-  if (credentials.address_city) formData.append('address_city', credentials.address_city);
-  if (credentials.address_emirate) formData.append('address_emirate', credentials.address_emirate);
-  if (credentials.address_latitude) formData.append('address_latitude', credentials.address_latitude.toString());
-  if (credentials.address_longitude) formData.append('address_longitude', credentials.address_longitude.toString());
+  // Address (backend expects nested format: address.field_name)
+  if (credentials.address_label) formData.append('address[label]', credentials.address_label);
+  if (credentials.address_street) formData.append('address[street_address]', credentials.address_street);
+  if (credentials.address_building) formData.append('address[building]', credentials.address_building);
+  if (credentials.address_apartment) formData.append('address[apartment]', credentials.address_apartment);
+  if (credentials.address_city) formData.append('address[city]', credentials.address_city);
+  if (credentials.address_emirate) formData.append('address[emirate]', credentials.address_emirate);
+  if (credentials.address_latitude) formData.append('address[latitude]', credentials.address_latitude.toString());
+  if (credentials.address_longitude) formData.append('address[longitude]', credentials.address_longitude.toString());
 
-  // Payment (optional - only if not skipped)
-  if (credentials.skip_payment !== undefined) formData.append('skip_payment', credentials.skip_payment ? '1' : '0');
+  // Payment (backend expects nested format: payment.field_name)
   if (!credentials.skip_payment) {
-    if (credentials.card_number) formData.append('card_number', credentials.card_number);
-    if (credentials.card_expiry) formData.append('card_expiry', credentials.card_expiry);
-    if (credentials.card_cvv) formData.append('card_cvv', credentials.card_cvv);
-    if (credentials.card_name) formData.append('card_name', credentials.card_name);
+    if (credentials.card_number) formData.append('payment[card_number]', credentials.card_number);
+    if (credentials.card_expiry) formData.append('payment[expiry_date]', credentials.card_expiry);
+    if (credentials.card_name) formData.append('payment[cardholder_name]', credentials.card_name);
+    // Note: CVV is typically not stored/sent to backend for security
   }
 
-  const response = await fetch(`${API_URL}/auth/register`, {
+  // Use the customer-specific endpoint
+  const response = await fetch(`${API_URL}/customer/register`, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
@@ -211,12 +210,13 @@ export function getRedirectPath(role: Role | null): string {
     case 'vendor':
       return '/vendor';
     case 'customer':
+    case 'user':
       return '/customer';
     case 'technician':
       return '/technician';
     default:
-      // Default to vendor if no role found (instead of login to prevent loop)
-      return '/vendor';
+      // Default to login if no role found
+      return '/login';
   }
 }
 
