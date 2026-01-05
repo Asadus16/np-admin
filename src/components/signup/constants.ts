@@ -85,6 +85,8 @@ export const initialVendorFormData: VendorFormData = {
   businessLandline: "",
   website: "",
   establishmentDate: "",
+  latitude: null,
+  longitude: null,
   // Step 2
   contactFirstName: "",
   contactLastName: "",

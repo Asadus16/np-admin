@@ -8,7 +8,32 @@ import {
   Plus, RefreshCcw, AlertCircle
 } from "lucide-react";
 
-const order = {
+interface OrderRefund {
+  amount: number;
+  reason: string;
+  status: string;
+  date: string;
+}
+
+interface Order {
+  id: string;
+  status: string;
+  customer: { name: string; email: string; phone: string };
+  service: { name: string; price: number; duration: number; addons: { name: string; price: number }[] };
+  address: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  notes: string;
+  assignedTo: string;
+  payment: { method: string; cardLast4: string; cardBrand: string; pointsUsed: number; status: string };
+  review: { rating: number; comment: string; date: string } | null;
+  refund: OrderRefund | null;
+  internalNotes: { id: number; text: string; author: string; date: string }[];
+  pointsEarned: number;
+  timeline: { id: number; event: string; time: string; completed: boolean }[];
+}
+
+const order: Order = {
   id: "ORD-001",
   status: "completed",
   customer: {
@@ -41,7 +66,7 @@ const order = {
     comment: "Excellent service! Mike was very professional and fixed the issue quickly. Highly recommend!",
     date: "Mar 19, 2024",
   },
-  refund: null, // { amount: 50, reason: "Partial refund for delay", status: "processed", date: "Mar 20, 2024" }
+  refund: null,
   internalNotes: [
     { id: 1, text: "Customer prefers morning appointments", author: "Mike J.", date: "Mar 17, 2024" },
     { id: 2, text: "Spare parts may be needed - check inventory", author: "Admin", date: "Mar 17, 2024" },
@@ -267,13 +292,13 @@ export default function OrderDetailPage() {
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
-                    className={`h-5 w-5 ${i < order.review.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
+                    className={`h-5 w-5 ${i < order.review!.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
                   />
                 ))}
-                <span className="ml-2 text-sm text-gray-600">{order.review.rating}.0</span>
+                <span className="ml-2 text-sm text-gray-600">{order.review!.rating}.0</span>
               </div>
-              <p className="text-sm text-gray-600">{order.review.comment}</p>
-              <p className="text-xs text-gray-400 mt-2">{order.review.date}</p>
+              <p className="text-sm text-gray-600">{order.review!.comment}</p>
+              <p className="text-xs text-gray-400 mt-2">{order.review!.date}</p>
             </div>
           )}
         </div>

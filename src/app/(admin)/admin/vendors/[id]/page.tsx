@@ -3,9 +3,15 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2, Wrench } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2, Wrench, Navigation } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCompany, deleteCompany, clearCurrentCompany, clearError } from "@/store/slices/companySlice";
+
+const StaticLocationMap = dynamic(
+  () => import("@/components/maps/StaticLocationMap"),
+  { ssr: false, loading: () => <div className="h-[200px] bg-gray-100 rounded-lg animate-pulse" /> }
+);
 
 export default function VendorDetailPage() {
   const params = useParams();
@@ -177,6 +183,31 @@ export default function VendorDetailPage() {
                 <span className="text-sm text-gray-900">Joined {formatDate(vendor.created_at)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Business Location */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-gray-400" />
+              Business Location
+            </h2>
+            {vendor.latitude && vendor.longitude ? (
+              <div>
+                <StaticLocationMap
+                  latitude={vendor.latitude}
+                  longitude={vendor.longitude}
+                  height="200px"
+                />
+                <p className="text-xs text-gray-500 mt-3">
+                  Coordinates: {vendor.latitude.toFixed(6)}, {vendor.longitude.toFixed(6)}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <MapPin className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No location provided</p>
+              </div>
+            )}
           </div>
 
           {vendor.description && (

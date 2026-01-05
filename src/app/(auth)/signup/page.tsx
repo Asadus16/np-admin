@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getRedirectPathForUser } from "@/lib/auth";
+import { ConfirmationResult } from "@/lib/firebase";
 import { getPublicCategories } from "@/lib/category";
 import { getPublicServiceAreas } from "@/lib/serviceArea";
 import { Category } from "@/types/category";
@@ -52,7 +53,7 @@ interface ApiError {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, sendPhoneOTP } = useAuth();
 
   // Role selection
   const [role, setRole] = useState<Role>("admin");
@@ -84,6 +85,8 @@ export default function SignupPage() {
   const [isCustomerSubmitted, setIsCustomerSubmitted] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [firebaseIdToken, setFirebaseIdToken] = useState<string | null>(null);
 
   // Shared state
   const [isLoading, setIsLoading] = useState(false);
@@ -376,7 +379,7 @@ export default function SignupPage() {
     !adminConfirmPasswordError;
 
   // Vendor form helpers
-  const updateVendorFormData = (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[]) => {
+  const updateVendorFormData = (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number) => {
     setVendorFormData((prev) => ({ ...prev, [field]: value }));
     if (vendorFieldErrors[field]) {
       setVendorFieldErrors((prev) => ({ ...prev, [field]: "" }));
@@ -491,6 +494,8 @@ export default function SignupPage() {
         landline: vendorFormData.businessLandline || undefined,
         website: vendorFormData.website || undefined,
         establishment: vendorFormData.establishmentDate || undefined,
+        latitude: vendorFormData.latitude || undefined,
+        longitude: vendorFormData.longitude || undefined,
         // Primary contact
         contact_first_name: vendorFormData.contactFirstName || undefined,
         contact_last_name: vendorFormData.contactLastName || undefined,
@@ -664,16 +669,90 @@ export default function SignupPage() {
     }
   };
 
-  const handleSendOtp = () => {
-    // Static implementation - just simulate OTP sent
-    setOtpSent(true);
-    setOtpCountdown(60);
+  const formatPhoneNumber = (phone: string) => {
+    let cleaned = phone.replace(/[^\d+]/g, "");
+    if (cleaned && !cleaned.startsWith("+")) {
+      cleaned = "+" + cleaned;
+    }
+    return cleaned;
   };
 
-  const handleVerifyOtp = () => {
-    // Static implementation - accept any 6-digit code
-    if (customerFormData.otpCode.length === 6) {
+  const handleSendOtp = async () => {
+    const formattedPhone = formatPhoneNumber(customerFormData.phone);
+
+    if (!formattedPhone || formattedPhone === "+") {
+      setCustomerFieldErrors(prev => ({ ...prev, phone: "Phone number is required" }));
+      return;
+    }
+
+    setIsLoading(true);
+    setGeneralError("");
+
+    try {
+      const result = await sendPhoneOTP(formattedPhone);
+      setConfirmationResult(result.confirmationResult);
+      setOtpSent(true);
+      setOtpCountdown(60);
+    } catch (error) {
+      console.error("Send OTP error:", error);
+      if (error instanceof Error) {
+        if (error.message.includes('billing-not-enabled')) {
+          setGeneralError("Phone verification is currently unavailable. You can skip this step.");
+        } else if (error.message.includes('too-many-requests')) {
+          setGeneralError("Too many attempts. Please try again later.");
+        } else if (error.message.includes('invalid-phone-number')) {
+          setGeneralError("Invalid phone number format. Please check and try again.");
+        } else if (error.message.includes('captcha-check-failed')) {
+          setGeneralError("reCAPTCHA verification failed. Please refresh the page and try again.");
+        } else {
+          setGeneralError(error.message || "Failed to send OTP. Please try again.");
+        }
+      } else {
+        setGeneralError("Failed to send OTP. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (customerFormData.otpCode.length !== 6) {
+      setCustomerFieldErrors(prev => ({ ...prev, otpCode: "Please enter a valid 6-digit code" }));
+      return;
+    }
+
+    if (!confirmationResult) {
+      setGeneralError("Please request a new OTP code");
+      return;
+    }
+
+    setIsLoading(true);
+    setGeneralError("");
+
+    try {
+      const userCredential = await confirmationResult.confirm(customerFormData.otpCode);
+      // Get the Firebase ID token to send to backend
+      const idToken = await userCredential.user.getIdToken();
+      console.log("[DEBUG] Firebase ID Token obtained:", idToken ? "Yes (length: " + idToken.length + ")" : "No");
+      console.log("[DEBUG] Firebase user phone:", userCredential.user.phoneNumber);
+      setFirebaseIdToken(idToken);
       updateCustomerFormData("isPhoneVerified", true);
+    } catch (error) {
+      console.error("Verify OTP error:", error);
+      if (error instanceof Error) {
+        if (error.message.includes('invalid-verification-code')) {
+          setCustomerFieldErrors(prev => ({ ...prev, otpCode: "Invalid OTP code" }));
+        } else if (error.message.includes('code-expired')) {
+          setGeneralError("OTP code has expired. Please request a new one.");
+          setOtpSent(false);
+        } else {
+          setGeneralError(error.message);
+        }
+      } else {
+        setGeneralError("Failed to verify OTP. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -683,6 +762,13 @@ export default function SignupPage() {
     setIsLoading(true);
     setGeneralError("");
 
+    const formattedPhone = customerFormData.phone ? formatPhoneNumber(customerFormData.phone) : undefined;
+    console.log("[DEBUG] Submitting customer registration:");
+    console.log("[DEBUG] - Phone from form:", customerFormData.phone);
+    console.log("[DEBUG] - Formatted phone:", formattedPhone);
+    console.log("[DEBUG] - Firebase ID Token:", firebaseIdToken ? "Yes (length: " + firebaseIdToken.length + ")" : "No");
+    console.log("[DEBUG] - Is phone verified:", customerFormData.isPhoneVerified);
+
     try {
       await register({
         first_name: customerFormData.firstName,
@@ -691,8 +777,10 @@ export default function SignupPage() {
         password: customerFormData.password,
         password_confirmation: customerFormData.passwordConfirmation,
         role: "customer",
-        // Customer-specific fields
-        phone: customerFormData.phone || undefined,
+        // Firebase ID token for phone verification
+        firebase_id_token: firebaseIdToken || undefined,
+        // Customer-specific fields (format phone with + to match Firebase format)
+        phone: formattedPhone,
         nationality: customerFormData.nationality || undefined,
         // Emirates ID
         emirates_id_number: customerFormData.emiratesIdNumber || undefined,
@@ -1315,6 +1403,9 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
+
+      {/* reCAPTCHA container for Firebase phone auth */}
+      <div id="recaptcha-container"></div>
     </div>
   );
 }

@@ -42,6 +42,8 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
   if (credentials.landline) formData.append('landline', credentials.landline);
   if (credentials.website) formData.append('website', credentials.website);
   if (credentials.establishment) formData.append('establishment', credentials.establishment);
+  if (credentials.latitude) formData.append('latitude', credentials.latitude.toString());
+  if (credentials.longitude) formData.append('longitude', credentials.longitude.toString());
 
   // Primary Contact
   if (credentials.contact_first_name) formData.append('contact_first_name', credentials.contact_first_name);
@@ -104,6 +106,11 @@ async function apiRegisterCustomer(credentials: RegisterCredentials): Promise<Au
   formData.append('email', credentials.email);
   formData.append('password', credentials.password);
   formData.append('password_confirmation', credentials.password_confirmation);
+
+  // Firebase ID token for phone verification
+  console.log("[DEBUG] apiRegisterCustomer - firebase_id_token:", credentials.firebase_id_token ? "Yes (length: " + credentials.firebase_id_token.length + ")" : "No");
+  console.log("[DEBUG] apiRegisterCustomer - phone:", credentials.phone);
+  if (credentials.firebase_id_token) formData.append('firebase_id_token', credentials.firebase_id_token);
 
   // Customer-specific fields
   if (credentials.phone) formData.append('phone', credentials.phone);

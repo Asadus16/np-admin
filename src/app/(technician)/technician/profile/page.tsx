@@ -12,20 +12,30 @@ import {
   CheckCircle,
   Loader2,
 } from "lucide-react";
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { getUserFullName } from "@/types/auth";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { updateUser } from "@/store/slices/authSlice";
 
 export default function ProfilePage() {
+  const dispatch = useAppDispatch();
+  const { token } = useAuth();
   const { user, isLoading } = useAppSelector((state) => state.auth);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [formData, setFormData] = useState({
     phone: "",
+    emirates_id: "",
   });
 
   useEffect(() => {
     if (user) {
       setFormData({
         phone: user.phone || "",
+        emirates_id: user.emirates_id || "",
       });
     }
   }, [user]);
@@ -37,6 +47,53 @@ export default function ProfilePage() {
       month: "long",
       day: "numeric",
     });
+  };
+
+  const handleSave = async () => {
+    if (!token) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    try {
+      const response = await api.put<{ data: typeof user }>(
+        "/technician/profile",
+        {
+          phone: formData.phone || null,
+          emirates_id: formData.emirates_id || null,
+        },
+        token
+      );
+
+      // Update user in store
+      if (response.data && user) {
+        dispatch(updateUser({
+          phone: formData.phone || null,
+          emirates_id: formData.emirates_id || null,
+        }));
+      }
+
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setSaveError(error.message || "Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setSaveError(null);
+    if (user) {
+      setFormData({
+        phone: user.phone || "",
+        emirates_id: user.emirates_id || "",
+      });
+    }
   };
 
   if (isLoading) {
@@ -109,7 +166,7 @@ export default function ProfilePage() {
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>
               <button
-                onClick={() => setIsEditing(!isEditing)}
+                onClick={isEditing ? handleCancel : () => setIsEditing(true)}
                 className="text-sm text-gray-600 hover:text-gray-900"
               >
                 {isEditing ? "Cancel" : "Edit"}
@@ -157,22 +214,43 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </div>
-              {user.emirates_id && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Emirates ID</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Emirates ID (Optional)</label>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={formData.emirates_id}
+                    onChange={(e) => setFormData({ ...formData, emirates_id: e.target.value })}
+                    placeholder="784-XXXX-XXXXXXX-X"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
+                  />
+                ) : (
                   <div className="flex items-center gap-2 text-sm text-gray-900">
                     <CreditCard className="h-4 w-4 text-gray-400" />
-                    {user.emirates_id}
+                    {user.emirates_id || "Not set"}
                   </div>
+                )}
+              </div>
+              {saveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                  {saveError}
+                </div>
+              )}
+              {saveSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Profile updated successfully
                 </div>
               )}
               {isEditing && (
                 <div className="pt-4">
                   <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    Save Changes
+                    {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {isSaving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
               )}

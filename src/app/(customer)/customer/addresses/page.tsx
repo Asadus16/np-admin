@@ -1,44 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { MapPin, Plus, Pencil, Trash2, Star, Home, Building, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { MapPin, Plus, Pencil, Trash2, Star, Home, Building, Check, Loader2, AlertCircle, X } from "lucide-react";
+import {
+  getAddresses,
+  createAddress,
+  updateAddress,
+  deleteAddress,
+  setAddressPrimary,
+  Address,
+  AddressFormData,
+} from "@/lib/address";
 
-// Static addresses data
-const initialAddresses = [
+const LocationPicker = dynamic(
+  () => import("@/components/maps/LocationPicker"),
   {
-    id: "1",
-    label: "Home",
-    street: "123 Sheikh Zayed Road",
-    building: "Marina Tower",
-    apartment: "Apt 1502",
-    city: "Dubai Marina",
-    emirate: "Dubai",
-    isDefault: true,
-    type: "home",
-  },
-  {
-    id: "2",
-    label: "Office",
-    street: "456 Business Bay Boulevard",
-    building: "Bay Square",
-    apartment: "Office 801",
-    city: "Business Bay",
-    emirate: "Dubai",
-    isDefault: false,
-    type: "office",
-  },
-  {
-    id: "3",
-    label: "Parents House",
-    street: "789 Al Wasl Road",
-    building: "Villa 42",
-    apartment: "",
-    city: "Jumeirah",
-    emirate: "Dubai",
-    isDefault: false,
-    type: "home",
-  },
-];
+    ssr: false,
+    loading: () => (
+      <div className="h-48 bg-gray-100 rounded-lg flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    ),
+  }
+);
 
 const emirates = [
   "Abu Dhabi",
@@ -51,91 +36,146 @@ const emirates = [
 ];
 
 export default function AddressesPage() {
-  const [addresses, setAddresses] = useState(initialAddresses);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    label: "",
-    street: "",
+  const [formData, setFormData] = useState<AddressFormData>({
+    label: "Home",
+    street_address: "",
     building: "",
     apartment: "",
     city: "",
     emirate: "Dubai",
-    type: "home",
+    latitude: null,
+    longitude: null,
+    is_primary: false,
   });
+
+  useEffect(() => {
+    fetchAddresses();
+  }, []);
+
+  const fetchAddresses = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await getAddresses();
+      setAddresses(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load addresses");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSetDefault = (id: string) => {
-    setAddresses((prev) =>
-      prev.map((addr) => ({
-        ...addr,
-        isDefault: addr.id === id,
-      }))
-    );
+  const handleLocationChange = (lat: number, lng: number) => {
+    setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
   };
 
-  const handleDelete = (id: string) => {
-    setAddresses((prev) => prev.filter((addr) => addr.id !== id));
+  const handleSetDefault = async (id: string) => {
+    try {
+      setIsSubmitting(true);
+      await setAddressPrimary(id);
+      await fetchAddresses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set primary address");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleEdit = (address: typeof initialAddresses[0]) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this address?")) return;
+
+    try {
+      setIsSubmitting(true);
+      await deleteAddress(id);
+      await fetchAddresses();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete address");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEdit = (address: Address) => {
     setFormData({
       label: address.label,
-      street: address.street,
-      building: address.building,
-      apartment: address.apartment,
+      street_address: address.street_address,
+      building: address.building || "",
+      apartment: address.apartment || "",
       city: address.city,
       emirate: address.emirate,
-      type: address.type,
+      latitude: address.latitude,
+      longitude: address.longitude,
+      is_primary: address.is_primary,
     });
     setEditingId(address.id);
     setShowForm(true);
   };
 
-  const handleSave = () => {
-    if (editingId) {
-      setAddresses((prev) =>
-        prev.map((addr) =>
-          addr.id === editingId
-            ? { ...addr, ...formData }
-            : addr
-        )
-      );
-    } else {
-      const newAddress = {
-        id: Date.now().toString(),
-        ...formData,
-        isDefault: addresses.length === 0,
-      };
-      setAddresses((prev) => [...prev, newAddress]);
+  const handleSave = async () => {
+    try {
+      setIsSubmitting(true);
+      setError(null);
+
+      if (editingId) {
+        await updateAddress(editingId, formData);
+      } else {
+        await createAddress(formData);
+      }
+
+      await fetchAddresses();
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save address");
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
     setShowForm(false);
     setEditingId(null);
     setFormData({
-      label: "",
-      street: "",
+      label: "Home",
+      street_address: "",
       building: "",
       apartment: "",
       city: "",
       emirate: "Dubai",
-      type: "home",
+      latitude: null,
+      longitude: null,
+      is_primary: false,
     });
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "home":
+  const getTypeIcon = (label: string) => {
+    switch (label) {
+      case "Home":
         return <Home className="h-5 w-5 text-gray-500" />;
-      case "office":
+      case "Work":
         return <Building className="h-5 w-5 text-gray-500" />;
       default:
         return <MapPin className="h-5 w-5 text-gray-500" />;
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -147,17 +187,8 @@ export default function AddressesPage() {
         </div>
         <button
           onClick={() => {
+            resetForm();
             setShowForm(true);
-            setEditingId(null);
-            setFormData({
-              label: "",
-              street: "",
-              building: "",
-              apartment: "",
-              city: "",
-              emirate: "Dubai",
-              type: "home",
-            });
           }}
           className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
         >
@@ -165,6 +196,17 @@ export default function AddressesPage() {
           Add Address
         </button>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       {showForm && (
@@ -174,36 +216,38 @@ export default function AddressesPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Label *</label>
+              <select
                 name="label"
-                placeholder="e.g., Home, Office, Parents"
                 value={formData.label}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
+              >
+                <option value="Home">Home</option>
+                <option value="Work">Work</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Emirate *</label>
               <select
-                name="type"
-                value={formData.type}
+                name="emirate"
+                value={formData.emirate}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               >
-                <option value="home">Home</option>
-                <option value="office">Office</option>
-                <option value="other">Other</option>
+                {emirates.map((em) => (
+                  <option key={em} value={em}>{em}</option>
+                ))}
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
               <input
                 type="text"
-                name="street"
+                name="street_address"
                 placeholder="Street name and number"
-                value={formData.street}
+                value={formData.street_address}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
@@ -220,7 +264,7 @@ export default function AddressesPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Apartment/Office (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Apartment/Office</label>
               <input
                 type="text"
                 name="apartment"
@@ -231,7 +275,7 @@ export default function AddressesPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City/Area</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City/Area *</label>
               <input
                 type="text"
                 name="city"
@@ -241,47 +285,34 @@ export default function AddressesPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Emirate</label>
-              <select
-                name="emirate"
-                value={formData.emirate}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              >
-                {emirates.map((em) => (
-                  <option key={em} value={em}>{em}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
-          {/* Map Placeholder */}
+          {/* Map Location Picker */}
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Pin Location</label>
-            <div className="h-48 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-              <div className="text-center">
-                <MapPin className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Map integration placeholder</p>
-                <p className="text-xs text-gray-400">Click to pin exact location</p>
-              </div>
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Pin Location</label>
+            <LocationPicker
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              onLocationChange={handleLocationChange}
+              height="200px"
+              autoFetch={!editingId}
+            />
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
             <button
-              onClick={() => {
-                setShowForm(false);
-                setEditingId(null);
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              onClick={resetForm}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+              disabled={isSubmitting || !formData.street_address || !formData.city}
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
             >
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {editingId ? "Update Address" : "Save Address"}
             </button>
           </div>
@@ -307,18 +338,18 @@ export default function AddressesPage() {
             <div
               key={address.id}
               className={`bg-white border rounded-lg p-4 ${
-                address.isDefault ? "border-gray-900" : "border-gray-200"
+                address.is_primary ? "border-gray-900" : "border-gray-200"
               }`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    {getTypeIcon(address.type)}
+                    {getTypeIcon(address.label)}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-gray-900">{address.label}</p>
-                      {address.isDefault && (
+                      {address.is_primary && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-900 text-white">
                           <Star className="h-3 w-3 mr-1" />
                           Default
@@ -326,7 +357,7 @@ export default function AddressesPage() {
                       )}
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      {address.street}
+                      {address.street_address}
                       {address.building && `, ${address.building}`}
                       {address.apartment && `, ${address.apartment}`}
                     </p>
@@ -336,10 +367,11 @@ export default function AddressesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {!address.isDefault && (
+                  {!address.is_primary && (
                     <button
                       onClick={() => handleSetDefault(address.id)}
-                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                      disabled={isSubmitting}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
                       title="Set as default"
                     >
                       <Check className="h-4 w-4" />
@@ -347,14 +379,16 @@ export default function AddressesPage() {
                   )}
                   <button
                     onClick={() => handleEdit(address)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                    disabled={isSubmitting}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50"
                     title="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(address.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    disabled={isSubmitting}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />

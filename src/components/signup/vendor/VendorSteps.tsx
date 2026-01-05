@@ -3,6 +3,7 @@
 import { Category } from "@/types/category";
 import { ServiceArea } from "@/types/serviceArea";
 import { VendorFormData, VendorService, SubServiceOption } from "../types";
+import LocationPicker from "@/components/maps/LocationPicker";
 import {
   Mail,
   Lock,
@@ -12,11 +13,12 @@ import {
   Trash2,
   ImageIcon,
   Briefcase,
+  MapPin,
 } from "lucide-react";
 
 interface VendorStepsProps {
   formData: VendorFormData;
-  updateFormData: (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[]) => void;
+  updateFormData: (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number) => void;
   fieldErrors: Record<string, string>;
   categories: Category[];
   categoriesLoading: boolean;
@@ -380,6 +382,32 @@ export default function VendorSteps({
           onChange={(e) => updateFormData("establishmentDate", e.target.value)}
           className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
         />
+      </div>
+
+      {/* Map for company location */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <MapPin className="inline-block w-4 h-4 mr-1 -mt-0.5" />
+          Business Location
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Pin your business location on the map
+        </p>
+        <LocationPicker
+          latitude={formData.latitude}
+          longitude={formData.longitude}
+          onLocationChange={(lat, lng) => {
+            updateFormData("latitude", lat);
+            updateFormData("longitude", lng);
+          }}
+          height="180px"
+          autoFetch
+        />
+        {(formData.latitude && formData.longitude) && (
+          <p className="text-xs text-blue-600 mt-1">
+            Location set: {formData.latitude.toFixed(6)}, {formData.longitude.toFixed(6)}
+          </p>
+        )}
       </div>
     </div>
   );

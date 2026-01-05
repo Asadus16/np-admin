@@ -20,6 +20,7 @@ import {
   CreditCard,
   FileText,
   PlusCircle,
+  Store,
 } from "lucide-react";
 
 interface CustomerSidebarProps {
@@ -60,9 +61,12 @@ const navigation: NavItem[] = [
     icon: <Gift className="h-4 w-4" />,
   },
   {
-    name: "Favorite Vendors",
-    href: "/customer/vendors/favorites",
-    icon: <Heart className="h-4 w-4" />,
+    name: "Vendors",
+    icon: <Store className="h-4 w-4" />,
+    children: [
+      { name: "Explore Vendors", href: "/customer/vendors" },
+      { name: "Favorite Vendors", href: "/customer/vendors/favorites" },
+    ],
   },
   {
     name: "Addresses",

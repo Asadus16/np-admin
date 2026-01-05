@@ -32,6 +32,8 @@ export interface VendorFormData {
   businessLandline: string;
   website: string;
   establishmentDate: string;
+  latitude: number | null;
+  longitude: number | null;
 
   // Step 2 - Primary Contact
   contactFirstName: string;

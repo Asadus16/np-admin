@@ -40,6 +40,8 @@ export interface Company {
   description: string | null;
   landline: string | null;
   website: string | null;
+  latitude: number | null;
+  longitude: number | null;
   establishment: string | null;
   category: {
     id: string;
