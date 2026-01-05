@@ -11,6 +11,27 @@ export interface BankDetails {
   trn: string | null;
 }
 
+export interface SubService {
+  id: string;
+  name: string;
+  price: string;
+  duration: number;
+  status: boolean;
+}
+
+export interface CompanyService {
+  id: string;
+  name: string;
+  description: string | null;
+  image: string | null;
+  status: boolean;
+  category: {
+    id: string;
+    name: string;
+  } | null;
+  sub_services?: SubService[];
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -19,6 +40,8 @@ export interface Company {
   description: string | null;
   landline: string | null;
   website: string | null;
+  latitude: number | null;
+  longitude: number | null;
   establishment: string | null;
   category: {
     id: string;
@@ -32,6 +55,7 @@ export interface Company {
   vat_certificate: string | null;
   approved: boolean;
   bank_details: BankDetails | null;
+  services?: CompanyService[];
   created_at: string;
   updated_at: string;
 }

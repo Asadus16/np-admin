@@ -1,22 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2, Building2, AlertCircle, X } from "lucide-react";
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2, Building2, AlertCircle, X, Calendar } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchApprovedCompanies, clearError } from "@/store/slices/companySlice";
+import { fetchCategories } from "@/store/slices/categorySlice";
 
 export default function VendorsPage() {
   const dispatch = useAppDispatch();
   const { approvedCompanies, isLoading, error, approvedPagination } = useAppSelector(
     (state) => state.company
   );
+  const { categories } = useAppSelector((state) => state.category);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  // Get unique service areas from all vendors
+  const uniqueServiceAreas = useMemo(() => {
+    const areasMap = new Map<string, string>();
+    approvedCompanies.forEach((company) => {
+      company.service_areas?.forEach((area) => {
+        areasMap.set(area.id, area.name);
+      });
+    });
+    return Array.from(areasMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [approvedCompanies]);
 
   useEffect(() => {
     dispatch(fetchApprovedCompanies(1));
+    dispatch(fetchCategories(1));
   }, [dispatch]);
 
   // Close menu when clicking outside
@@ -28,10 +47,38 @@ export default function VendorsPage() {
     }
   }, [openMenu]);
 
-  const filteredVendors = approvedCompanies.filter((company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (company.email && company.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredVendors = approvedCompanies.filter((company) => {
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (!company.name.toLowerCase().includes(query) &&
+          !(company.email && company.email.toLowerCase().includes(query))) {
+        return false;
+      }
+    }
+
+    // Status filter (based on approved field - all are approved here, but we can filter by active services)
+    if (statusFilter === "active" && !company.approved) return false;
+    if (statusFilter === "inactive" && company.approved) return false;
+
+    // Category filter
+    if (categoryFilter !== "all" && company.category?.id !== categoryFilter) return false;
+
+    // Location filter
+    if (locationFilter !== "all") {
+      const hasArea = company.service_areas?.some((area) => area.id === locationFilter);
+      if (!hasArea) return false;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      const createdDate = new Date(company.created_at);
+      if (dateFrom && createdDate < new Date(dateFrom)) return false;
+      if (dateTo && createdDate > new Date(dateTo + "T23:59:59")) return false;
+    }
+
+    return true;
+  });
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -88,16 +135,86 @@ export default function VendorsPage() {
       )}
 
       <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="p-4 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search vendors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-            />
+        <div className="p-4 border-b border-gray-200 space-y-4">
+          {/* Search and Primary Filters */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+            >
+              <option value="all">All Locations</option>
+              {uniqueServiceAreas.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {area.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Range Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <span className="text-sm text-gray-500">Date Range:</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+              />
+              <span className="text-sm text-gray-400">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 underline"
+              >
+                Clear dates
+              </button>
+            )}
           </div>
         </div>
 

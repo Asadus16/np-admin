@@ -2,19 +2,69 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Lock, Eye, EyeOff, Shield, Smartphone, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Lock, Eye, EyeOff, Shield, Smartphone, AlertTriangle, Loader2, CheckCircle } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SecurityPage() {
+  const { token } = useAuth();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle password change
+    setError(null);
+    setSuccess(false);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters long");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await api.put(
+        "/technician/change-password",
+        {
+          current_password: currentPassword,
+          password: newPassword,
+          password_confirmation: confirmPassword,
+        },
+        token!
+      );
+
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: unknown) {
+      const error = err as { message?: string; errors?: Record<string, string[]> };
+      if (error.errors?.current_password) {
+        setError(error.errors.current_password[0]);
+      } else {
+        setError(error.message || "Failed to change password. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -120,11 +170,24 @@ export default function SecurityPage() {
                 <li>• Contains at least one special character</li>
               </ul>
             </div>
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                Password changed successfully
+              </div>
+            )}
             <button
               type="submit"
-              className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+              disabled={isLoading}
+              className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Update Password
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isLoading ? "Updating..." : "Update Password"}
             </button>
           </form>
         </div>

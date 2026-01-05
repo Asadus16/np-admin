@@ -4,6 +4,7 @@ import serviceAreaReducer from './slices/serviceAreaSlice';
 import categoryReducer from './slices/categorySlice';
 import companyReducer from './slices/companySlice';
 import analyticsReducer from './slices/analyticsSlice';
+import planReducer from './slices/planSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     category: categoryReducer,
     company: companyReducer,
     analytics: analyticsReducer,
+    plan: planReducer,
   },
 });
 

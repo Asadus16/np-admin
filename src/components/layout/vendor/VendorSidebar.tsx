@@ -18,7 +18,6 @@ import {
   Bell,
   BarChart3,
   Settings,
-  Building2,
 } from "lucide-react";
 
 interface VendorSidebarProps {
@@ -39,16 +38,6 @@ const navigation: NavItem[] = [
     name: "Dashboard",
     href: "/vendor",
     icon: <LayoutDashboard className="h-4 w-4" />,
-  },
-  {
-    name: "Onboarding",
-    icon: <Building2 className="h-4 w-4" />,
-    children: [
-      { name: "Company Profile", href: "/vendor/onboarding" },
-      { name: "KYC Verification", href: "/vendor/onboarding/kyc" },
-      { name: "Service Areas", href: "/vendor/onboarding/service-areas" },
-      { name: "Teams", href: "/vendor/onboarding/teams" },
-    ],
   },
   {
     name: "Service Catalog",
@@ -77,7 +66,6 @@ const navigation: NavItem[] = [
     children: [
       { name: "Team", href: "/vendor/technicians" },
       { name: "Invite", href: "/vendor/technicians/invite" },
-      { name: "Roles", href: "/vendor/technicians/roles" },
       { name: "Assignments", href: "/vendor/technicians/assignments" },
     ],
   },

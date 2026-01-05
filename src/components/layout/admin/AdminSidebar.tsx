@@ -105,6 +105,7 @@ const navigation: NavItem[] = [
     name: "Billing & Plans",
     icon: <CreditCard className="h-4 w-4" />,
     children: [
+      { name: "Plans", href: "/admin/billing/plans" },
       { name: "Usage & Limits", href: "/admin/billing" },
       { name: "Feature Flags", href: "/admin/billing/feature-flags" },
     ],

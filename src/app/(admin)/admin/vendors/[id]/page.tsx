@@ -3,9 +3,15 @@
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2, Wrench, Navigation } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCompany, deleteCompany, clearCurrentCompany, clearError } from "@/store/slices/companySlice";
+
+const StaticLocationMap = dynamic(
+  () => import("@/components/maps/StaticLocationMap"),
+  { ssr: false, loading: () => <div className="h-[200px] bg-gray-100 rounded-lg animate-pulse" /> }
+);
 
 export default function VendorDetailPage() {
   const params = useParams();
@@ -126,22 +132,26 @@ export default function VendorDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-2xl font-semibold text-gray-900">{vendor.service_areas?.length || 0}</div>
-          <p className="text-sm text-gray-500 mt-1">Service Areas</p>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Services</p>
+          <p className="text-lg font-semibold text-gray-900 mt-0.5">{vendor.services?.length || 0}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-2xl font-semibold text-gray-900">{vendor.trade_license_number}</div>
-          <p className="text-sm text-gray-500 mt-1">Trade License</p>
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Areas</p>
+          <p className="text-lg font-semibold text-gray-900 mt-0.5">{vendor.service_areas?.length || 0}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-2xl font-semibold text-gray-900">{formatDate(vendor.establishment)}</div>
-          <p className="text-sm text-gray-500 mt-1">Established</p>
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Trade License</p>
+          <p className="text-sm font-medium text-gray-900 mt-0.5 truncate" title={vendor.trade_license_number}>{vendor.trade_license_number || "N/A"}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="text-2xl font-semibold text-gray-900">{formatDate(vendor.created_at)}</div>
-          <p className="text-sm text-gray-500 mt-1">Joined</p>
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Established</p>
+          <p className="text-sm font-medium text-gray-900 mt-0.5">{formatDate(vendor.establishment)}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Joined</p>
+          <p className="text-sm font-medium text-gray-900 mt-0.5">{formatDate(vendor.created_at)}</p>
         </div>
       </div>
 
@@ -173,6 +183,31 @@ export default function VendorDetailPage() {
                 <span className="text-sm text-gray-900">Joined {formatDate(vendor.created_at)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Business Location */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-gray-400" />
+              Business Location
+            </h2>
+            {vendor.latitude && vendor.longitude ? (
+              <div>
+                <StaticLocationMap
+                  latitude={vendor.latitude}
+                  longitude={vendor.longitude}
+                  height="200px"
+                />
+                <p className="text-xs text-gray-500 mt-3">
+                  Coordinates: {vendor.latitude.toFixed(6)}, {vendor.longitude.toFixed(6)}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-gray-50 rounded-lg">
+                <MapPin className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No location provided</p>
+              </div>
+            )}
           </div>
 
           {vendor.description && (
@@ -297,6 +332,59 @@ export default function VendorDetailPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">No service areas assigned</p>
+            )}
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Active Services</h2>
+            {vendor.services && vendor.services.length > 0 ? (
+              <div className="space-y-4">
+                {vendor.services.map((service) => (
+                  <div
+                    key={service.id}
+                    className="border border-gray-100 rounded-lg overflow-hidden"
+                  >
+                    <div className="flex items-start gap-3 p-3">
+                      {service.image ? (
+                        <img
+                          src={service.image}
+                          alt={service.name}
+                          className="w-10 h-10 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <Wrench className="h-5 w-5 text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{service.name}</p>
+                        {service.category && (
+                          <p className="text-xs text-gray-500">{service.category.name}</p>
+                        )}
+                      </div>
+                    </div>
+                    {service.sub_services && service.sub_services.length > 0 && (
+                      <div className="bg-gray-50 px-3 py-2 border-t border-gray-100">
+                        <p className="text-xs font-medium text-gray-500 mb-2">Sub-services:</p>
+                        <div className="space-y-1.5">
+                          {service.sub_services.map((subService) => (
+                            <div key={subService.id} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-700">{subService.name}</span>
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <span>AED {subService.price}</span>
+                                <span>•</span>
+                                <span>{subService.duration} min</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No active services</p>
             )}
           </div>
         </div>

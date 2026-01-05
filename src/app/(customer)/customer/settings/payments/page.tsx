@@ -1,84 +1,226 @@
 "use client";
 
-import { useState } from "react";
-import { CreditCard, Plus, Trash2, Check, Star } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Trash2, Check, Loader2, AlertCircle, X, ShieldCheck, Wifi } from "lucide-react";
+import {
+  getPaymentMethods,
+  createSetupIntent,
+  attachPaymentMethod,
+  setDefaultPaymentMethod,
+  deletePaymentMethod,
+  PaymentMethod,
+} from "@/lib/paymentMethod";
+import StripeProvider from "@/components/stripe/StripeProvider";
+import CardForm from "@/components/stripe/CardForm";
 
-// Static payment methods data
-const initialPaymentMethods = [
-  {
-    id: "1",
-    type: "visa",
-    last4: "4242",
-    expiry: "12/26",
-    isDefault: true,
-    cardHolder: "AHMED AL MAKTOUM",
-  },
-  {
-    id: "2",
-    type: "mastercard",
-    last4: "8888",
-    expiry: "08/25",
-    isDefault: false,
-    cardHolder: "AHMED AL MAKTOUM",
-  },
-];
+// Card brand configurations with logos (all cards use gray gradient)
+const cardBrandLogos: Record<string, string> = {
+  visa: "VISA",
+  mastercard: "mastercard",
+  amex: "AMEX",
+  discover: "DISCOVER",
+  diners: "DINERS",
+  jcb: "JCB",
+  unionpay: "UnionPay",
+};
+
+function CreditCardDisplay({
+  paymentMethod,
+  onSetDefault,
+  onRemove,
+  isSubmitting,
+}: {
+  paymentMethod: PaymentMethod;
+  onSetDefault: () => void;
+  onRemove: () => void;
+  isSubmitting: boolean;
+}) {
+  const brandKey = paymentMethod.brand.toLowerCase();
+  const logo = cardBrandLogos[brandKey] || paymentMethod.brand.toUpperCase();
+
+  return (
+    <div className="relative group">
+      {/* Credit Card */}
+      <div
+        className="relative w-full max-w-sm aspect-[1.586/1] bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-2xl p-5 sm:p-6 shadow-xl overflow-hidden transition-transform duration-300 group-hover:scale-[1.02]"
+      >
+        {/* Card Pattern Overlay */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
+        </div>
+
+        {/* Card Content */}
+        <div className="relative h-full flex flex-col justify-between text-white">
+          {/* Top Row - Chip, Contactless, Default Badge */}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              {/* EMV Chip */}
+              <div className="w-10 h-7 sm:w-12 sm:h-8 bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 rounded-md flex items-center justify-center">
+                <div className="w-7 h-5 sm:w-8 sm:h-6 border border-yellow-700/30 rounded-sm grid grid-cols-3 gap-px p-0.5">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="bg-yellow-600/40 rounded-sm" />
+                  ))}
+                </div>
+              </div>
+              {/* Contactless Icon */}
+              <Wifi className="w-5 h-5 sm:w-6 sm:h-6 rotate-90 opacity-80" />
+            </div>
+            {/* Default Badge */}
+            {paymentMethod.is_default && (
+              <span className="px-2 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium">
+                Default
+              </span>
+            )}
+          </div>
+
+          {/* Card Number */}
+          <div className="space-y-1">
+            <p className="text-lg sm:text-xl tracking-[0.2em] font-mono">
+              •••• •••• •••• {paymentMethod.last4}
+            </p>
+          </div>
+
+          {/* Bottom Row - Expiry and Brand */}
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-[10px] sm:text-xs uppercase opacity-70 mb-0.5">Valid Thru</p>
+              <p className="text-sm sm:text-base font-mono tracking-wider">
+                {paymentMethod.expiry_month}/{paymentMethod.expiry_year.slice(-2)}
+              </p>
+            </div>
+            {/* Brand Logo */}
+            <div className="text-right">
+              {brandKey === "mastercard" ? (
+                <div className="flex items-center gap-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-500 rounded-full opacity-90" />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-yellow-500 rounded-full -ml-3 opacity-90" />
+                </div>
+              ) : (
+                <span className="text-xl sm:text-2xl font-bold italic tracking-tight">
+                  {logo}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons - Below Card */}
+      <div className="flex items-center justify-end gap-2 mt-3">
+        {!paymentMethod.is_default && (
+          <button
+            onClick={onSetDefault}
+            disabled={isSubmitting}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Set Default
+          </button>
+        )}
+        <button
+          onClick={onRemove}
+          disabled={isSubmitting}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function PaymentMethodsPage() {
-  const [paymentMethods, setPaymentMethods] = useState(initialPaymentMethods);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showAddCard, setShowAddCard] = useState(false);
-  const [newCard, setNewCard] = useState({
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-    cardHolder: "",
-  });
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
-  const handleSetDefault = (id: string) => {
-    setPaymentMethods((prev) =>
-      prev.map((pm) => ({
-        ...pm,
-        isDefault: pm.id === id,
-      }))
-    );
-  };
+  useEffect(() => {
+    fetchPaymentMethods();
+  }, []);
 
-  const handleRemove = (id: string) => {
-    setPaymentMethods((prev) => prev.filter((pm) => pm.id !== id));
-  };
-
-  const handleAddCard = () => {
-    // Static - just add a mock card
-    const newPaymentMethod = {
-      id: Date.now().toString(),
-      type: "visa",
-      last4: newCard.cardNumber.slice(-4) || "0000",
-      expiry: newCard.expiry || "01/28",
-      isDefault: paymentMethods.length === 0,
-      cardHolder: newCard.cardHolder.toUpperCase() || "CARD HOLDER",
-    };
-    setPaymentMethods((prev) => [...prev, newPaymentMethod]);
-    setShowAddCard(false);
-    setNewCard({ cardNumber: "", expiry: "", cvv: "", cardHolder: "" });
-  };
-
-  const getCardIcon = (type: string) => {
-    switch (type) {
-      case "visa":
-        return (
-          <div className="w-10 h-6 bg-blue-600 rounded flex items-center justify-center">
-            <span className="text-white text-xs font-bold">VISA</span>
-          </div>
-        );
-      case "mastercard":
-        return (
-          <div className="w-10 h-6 bg-orange-500 rounded flex items-center justify-center">
-            <span className="text-white text-xs font-bold">MC</span>
-          </div>
-        );
-      default:
-        return <CreditCard className="h-6 w-6 text-gray-400" />;
+  const fetchPaymentMethods = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await getPaymentMethods();
+      setPaymentMethods(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load payment methods");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const handleOpenAddCard = async () => {
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      const response = await createSetupIntent();
+      setClientSecret(response.data.client_secret);
+      setShowAddCard(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to initialize card setup");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCardAdded = async (paymentMethodId: string) => {
+    try {
+      await attachPaymentMethod(paymentMethodId);
+      await fetchPaymentMethods();
+      setShowAddCard(false);
+      setClientSecret(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add card");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancelAddCard = () => {
+    setShowAddCard(false);
+    setClientSecret(null);
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      setIsSubmitting(true);
+      await setDefaultPaymentMethod(id);
+      await fetchPaymentMethods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set default");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRemove = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this card?")) return;
+
+    try {
+      setIsSubmitting(true);
+      await deletePaymentMethod(id);
+      await fetchPaymentMethods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove card");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -89,153 +231,98 @@ export default function PaymentMethodsPage() {
           <p className="text-sm text-gray-500 mt-1">Manage your saved payment methods</p>
         </div>
         <button
-          onClick={() => setShowAddCard(true)}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          onClick={handleOpenAddCard}
+          disabled={isSubmitting || showAddCard}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
         >
-          <Plus className="h-4 w-4 mr-2" />
+          {isSubmitting && !showAddCard ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Plus className="h-4 w-4 mr-2" />
+          )}
           Add Card
         </button>
       </div>
 
-      {/* Add Card Form */}
-      {showAddCard && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Add New Card</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
-              <input
-                type="text"
-                placeholder="1234 5678 9012 3456"
-                value={newCard.cardNumber}
-                onChange={(e) => setNewCard((prev) => ({ ...prev, cardNumber: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-              <input
-                type="text"
-                placeholder="MM/YY"
-                value={newCard.expiry}
-                onChange={(e) => setNewCard((prev) => ({ ...prev, expiry: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
-              <input
-                type="text"
-                placeholder="123"
-                value={newCard.cvv}
-                onChange={(e) => setNewCard((prev) => ({ ...prev, cvv: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder Name</label>
-              <input
-                type="text"
-                placeholder="JOHN DOE"
-                value={newCard.cardHolder}
-                onChange={(e) => setNewCard((prev) => ({ ...prev, cardHolder: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <button
-              onClick={() => setShowAddCard(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleAddCard}
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
-            >
-              Add Card
-            </button>
-          </div>
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      {/* Payment Methods List */}
-      <div className="space-y-4">
-        {paymentMethods.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No payment methods saved</p>
-            <button
-              onClick={() => setShowAddCard(true)}
-              className="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Your First Card
-            </button>
-          </div>
-        ) : (
-          paymentMethods.map((pm) => (
-            <div
-              key={pm.id}
-              className={`bg-white border rounded-lg p-4 ${
-                pm.isDefault ? "border-gray-900" : "border-gray-200"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  {getCardIcon(pm.type)}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900">
-                        •••• •••• •••• {pm.last4}
-                      </p>
-                      {pm.isDefault && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-900 text-white">
-                          <Star className="h-3 w-3 mr-1" />
-                          Default
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {pm.cardHolder} &bull; Expires {pm.expiry}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!pm.isDefault && (
-                    <button
-                      onClick={() => handleSetDefault(pm.id)}
-                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-                      title="Set as default"
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleRemove(pm.id)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                    title="Remove card"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+      {/* Add Card Form with Stripe Elements */}
+      {showAddCard && clientSecret && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Add New Card</h2>
+          <StripeProvider clientSecret={clientSecret}>
+            <CardForm
+              onSuccess={handleCardAdded}
+              onCancel={handleCancelAddCard}
+              isSubmitting={isSubmitting}
+              setIsSubmitting={setIsSubmitting}
+            />
+          </StripeProvider>
+        </div>
+      )}
+
+      {/* Payment Methods Grid */}
+      {paymentMethods.length === 0 ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
+          {/* Empty State Card Preview */}
+          <div className="relative w-64 aspect-[1.586/1] bg-gradient-to-br from-gray-300 via-gray-400 to-gray-500 rounded-2xl mx-auto mb-6 shadow-lg overflow-hidden">
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+            </div>
+            <div className="relative h-full flex flex-col justify-between p-4 text-white/50">
+              <div className="w-10 h-7 bg-gray-200/30 rounded-md" />
+              <p className="text-lg tracking-[0.2em] font-mono">•••• •••• •••• ••••</p>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[10px] uppercase opacity-50">Valid Thru</p>
+                  <p className="text-sm font-mono">MM/YY</p>
                 </div>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          </div>
+          <p className="text-gray-500 mb-4">No payment methods saved</p>
+          <button
+            onClick={handleOpenAddCard}
+            disabled={isSubmitting}
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Your First Card
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {paymentMethods.map((pm) => (
+            <CreditCardDisplay
+              key={pm.id}
+              paymentMethod={pm}
+              onSetDefault={() => handleSetDefault(pm.id)}
+              onRemove={() => handleRemove(pm.id)}
+              isSubmitting={isSubmitting}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Security Note */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-gray-200 rounded-lg">
-            <CreditCard className="h-5 w-5 text-gray-600" />
+          <div className="p-2 bg-green-100 rounded-lg">
+            <ShieldCheck className="h-5 w-5 text-green-600" />
           </div>
           <div>
             <p className="text-sm font-medium text-gray-900">Secure Payment Processing</p>
             <p className="text-xs text-gray-500 mt-1">
-              Your payment information is encrypted and securely stored. We never store your full card number or CVV.
+              Your payment information is securely processed by Stripe. We never store your full card number, CVV, or sensitive card details on our servers.
             </p>
           </div>
         </div>

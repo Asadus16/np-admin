@@ -18,9 +18,15 @@ export interface User {
   roles?: UserRole[] | string[];
   role?: Role; // Single role field (alternative format)
   email_verified_at?: string | null;
+  phone_verified_at?: string | null;
   created_at?: string;
   updated_at?: string;
   avatar?: string;
+  // Company info (for vendors and technicians)
+  company?: {
+    id: string;
+    name: string;
+  } | null;
   // Vendor-specific fields
   vendorId?: string;
   vendorName?: string;
@@ -85,6 +91,8 @@ export interface RegisterCredentials {
   password: string;
   password_confirmation: string;
   role?: Role;
+  // Firebase ID token for phone verification
+  firebase_id_token?: string;
   // Vendor-specific fields (required when role is 'vendor')
   // Company profile
   company_name?: string;
@@ -94,6 +102,8 @@ export interface RegisterCredentials {
   landline?: string;
   website?: string;
   establishment?: string;
+  latitude?: number;
+  longitude?: number;
   // Primary Contact
   contact_first_name?: string;
   contact_last_name?: string;

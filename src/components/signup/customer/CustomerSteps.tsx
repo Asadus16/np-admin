@@ -2,17 +2,18 @@
 
 import { CustomerFormData } from "../types";
 import { NATIONALITIES, EMIRATES } from "../constants";
+import LocationPicker from "@/components/maps/LocationPicker";
 import {
   User,
   Mail,
   Lock,
   Phone,
   Shield,
-  MapPin,
   CreditCard,
   CheckCircle2,
   X,
   Users,
+  MapPin,
 } from "lucide-react";
 
 interface CustomerStepsProps {
@@ -27,6 +28,8 @@ interface CustomerStepsProps {
   // File input refs
   emiratesIdFrontRef: React.RefObject<HTMLInputElement>;
   emiratesIdBackRef: React.RefObject<HTMLInputElement>;
+  // Loading state
+  isLoading?: boolean;
 }
 
 export default function CustomerSteps({
@@ -39,6 +42,7 @@ export default function CustomerSteps({
   handleVerifyOtp,
   emiratesIdFrontRef,
   emiratesIdBackRef,
+  isLoading = false,
 }: CustomerStepsProps) {
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -458,15 +462,30 @@ export default function CustomerSteps({
         </div>
       </div>
 
-      {/* Map placeholder */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="h-40 bg-gray-100 flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <MapPin className="w-8 h-8 mx-auto mb-2" />
-            <p className="text-sm">Map integration coming soon</p>
-            <p className="text-xs">You can pin your exact location</p>
-          </div>
-        </div>
+      {/* Map for location selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <MapPin className="inline-block w-4 h-4 mr-1 -mt-0.5" />
+          Pin Your Location
+        </label>
+        <p className="text-xs text-gray-500 mb-2">
+          Drag the marker or click on the map to set your exact location
+        </p>
+        <LocationPicker
+          latitude={formData.latitude}
+          longitude={formData.longitude}
+          onLocationChange={(lat, lng) => {
+            updateFormData("latitude", lat);
+            updateFormData("longitude", lng);
+          }}
+          height="200px"
+          autoFetch
+        />
+        {(formData.latitude && formData.longitude) && (
+          <p className="text-xs text-green-600 mt-1">
+            Location set: {formData.latitude.toFixed(6)}, {formData.longitude.toFixed(6)}
+          </p>
+        )}
       </div>
     </div>
   );
