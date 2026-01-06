@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, User, Edit2, Save, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, User, Edit2, Save, X, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { getTechnician, updateTechnician } from "@/lib/technician";
 import { Technician } from "@/types/technician";
 import { ApiException } from "@/lib/auth";
@@ -166,13 +166,21 @@ export default function TechnicianDetailPage({ params }: { params: { id: string 
           <p className="text-sm text-gray-500 mt-1">View and manage technician information</p>
         </div>
         {!isEditing && (
-          <Button
-            onClick={() => setIsEditing(true)}
-            variant="outline"
-          >
-            <Edit2 className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
+          <div className="flex gap-2">
+            <Link href={`/vendor/technicians/${params.id}/availability`}>
+              <Button variant="outline">
+                <Clock className="h-4 w-4 mr-2" />
+                Availability
+              </Button>
+            </Link>
+            <Button
+              onClick={() => setIsEditing(true)}
+              variant="outline"
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </div>
         )}
       </div>
 
