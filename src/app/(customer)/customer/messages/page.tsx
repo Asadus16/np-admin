@@ -1,90 +1,164 @@
 "use client";
 
-import { useState } from "react";
-import { MessageSquare, Send, Search, Phone, MoreVertical, Check, CheckCheck } from "lucide-react";
-
-// Static conversations data
-const conversations = [
-  {
-    id: "c1",
-    vendor: "Quick Fix Plumbing",
-    vendorLogo: "QF",
-    lastMessage: "The technician will arrive by 2 PM tomorrow.",
-    time: "10:30 AM",
-    unread: 2,
-    order: "ORD-2024-002",
-  },
-  {
-    id: "c2",
-    vendor: "Green Clean Services",
-    vendorLogo: "GC",
-    lastMessage: "Thank you for your feedback!",
-    time: "Yesterday",
-    unread: 0,
-    order: "ORD-2024-001",
-  },
-  {
-    id: "c3",
-    vendor: "Spark Electric Co",
-    vendorLogo: "SE",
-    lastMessage: "The inspection has been completed successfully.",
-    time: "Dec 27",
-    unread: 0,
-    order: "ORD-2024-003",
-  },
-  {
-    id: "c4",
-    vendor: "Cool Air HVAC",
-    vendorLogo: "CA",
-    lastMessage: "We recommend scheduling the next maintenance in 3 months.",
-    time: "Dec 25",
-    unread: 0,
-    order: "ORD-2024-004",
-  },
-];
-
-// Static messages for selected conversation
-const messagesData: Record<string, Array<{
-  id: number;
-  sender: "customer" | "vendor";
-  message: string;
-  time: string;
-  read: boolean;
-}>> = {
-  c1: [
-    { id: 1, sender: "customer", message: "Hi, I need to confirm my appointment for tomorrow.", time: "9:15 AM", read: true },
-    { id: 2, sender: "vendor", message: "Hello! Yes, your appointment is confirmed for tomorrow at 2 PM.", time: "9:30 AM", read: true },
-    { id: 3, sender: "customer", message: "Great, thank you! Will it be the same technician as last time?", time: "9:45 AM", read: true },
-    { id: 4, sender: "vendor", message: "Yes, Mohammed will be handling your service again.", time: "10:00 AM", read: true },
-    { id: 5, sender: "vendor", message: "The technician will arrive by 2 PM tomorrow.", time: "10:30 AM", read: false },
-    { id: 6, sender: "vendor", message: "Please ensure someone is available to let him in.", time: "10:30 AM", read: false },
-  ],
-  c2: [
-    { id: 1, sender: "vendor", message: "Your cleaning service has been completed.", time: "4:00 PM", read: true },
-    { id: 2, sender: "customer", message: "The team did an excellent job! Very satisfied.", time: "5:30 PM", read: true },
-    { id: 3, sender: "vendor", message: "Thank you for your feedback!", time: "5:45 PM", read: true },
-  ],
-};
+import { useState, useEffect, useRef } from "react";
+import { MessageSquare, Send, Search, Phone, MoreVertical } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  fetchConversations,
+  fetchConversation,
+  sendMessage,
+  fetchUnreadCount,
+} from "@/store/slices/chatSlice";
+import type { Conversation, Message } from "@/types/chat";
+import { useSocket } from "@/hooks/useSocket";
+import { formatConversationTime, formatMessageTime } from "@/lib/timeFormat";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import TypingIndicator from "@/components/chat/TypingIndicator";
 
 export default function MessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState<string | null>("c1");
+  const dispatch = useAppDispatch();
+  const { conversations, currentConversation, loading, error } = useAppSelector(
+    (state) => state.chat
+  );
+  const { user } = useAppSelector((state) => state.auth);
+
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const selectedConvo = conversations.find((c) => c.id === selectedConversation);
-  const messages = selectedConversation ? messagesData[selectedConversation] || [] : [];
+  // Initialize Socket.IO for real-time messaging
+  useSocket(selectedConversationId);
 
-  const filteredConversations = conversations.filter(
-    (c) =>
-      c.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.order.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Initialize typing indicator
+  const { isTyping, typingUserName, startTyping, stopTyping } = useTypingIndicator({
+    conversationId: selectedConversationId,
+    userId: user?.id || '',
+    userEmail: user?.email || '',
+    userName: `${user?.first_name} ${user?.last_name}`,
+  });
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
-    // Static - just clear the input
-    setNewMessage("");
+  // Fetch conversations on mount
+  useEffect(() => {
+    dispatch(fetchConversations());
+    dispatch(fetchUnreadCount());
+  }, [dispatch]);
+
+  // Fetch conversation details when selected
+  useEffect(() => {
+    if (selectedConversationId) {
+      dispatch(fetchConversation(selectedConversationId));
+    }
+  }, [selectedConversationId, dispatch]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [currentConversation?.messages]);
+
+  // Poll for new messages every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (selectedConversationId) {
+        dispatch(fetchConversation(selectedConversationId));
+      }
+      dispatch(fetchConversations());
+      dispatch(fetchUnreadCount());
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [selectedConversationId, dispatch]);
+
+  // Auto-select first conversation
+  useEffect(() => {
+    if (conversations.length > 0 && !selectedConversationId) {
+      setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversations, selectedConversationId]);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversationId) return;
+
+    // Stop typing indicator when sending
+    stopTyping();
+
+    try {
+      await dispatch(
+        sendMessage({
+          conversationId: selectedConversationId,
+          payload: { message: newMessage },
+        })
+      ).unwrap();
+
+      setNewMessage("");
+      dispatch(fetchConversation(selectedConversationId));
+      dispatch(fetchConversations());
+    } catch (err) {
+      console.error("Failed to send message:", err);
+    }
   };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+
+    // Start typing indicator
+    if (e.target.value.trim()) {
+      startTyping();
+
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        stopTyping();
+      }, 2000);
+    } else {
+      stopTyping();
+    }
+  };
+
+  const getOtherUser = (conversation: Conversation) => {
+    // Use other_user field from backend, or fallback to email comparison
+    if (conversation.other_user) {
+      return conversation.other_user;
+    }
+    return conversation.admin?.email === user?.email ? conversation.user : conversation.admin;
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+
+  const isOwnMessage = (message: Message) => {
+    // Compare using email instead of encrypted IDs since IDs are encrypted differently each time
+    return message.sender.email === user?.email;
+  };
+
+  const filteredConversations = conversations.filter((conv) => {
+    const otherUser = getOtherUser(conv);
+    const fullName = `${otherUser.first_name} ${otherUser.last_name}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  });
+
+  const selectedConvo = conversations.find((c) => c.id === selectedConversationId);
+
+  if (error) {
+    return (
+      <div className="h-[calc(100vh-200px)] flex flex-col">
+        <div className="mb-4">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Messages</h1>
+          <p className="text-sm text-gray-500 mt-1">Chat with your service providers</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-800">Error loading messages: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-200px)] flex flex-col">
@@ -109,54 +183,81 @@ export default function MessagesPage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {filteredConversations.length === 0 ? (
+            {loading && conversations.length === 0 ? (
+              <div className="p-4 text-center text-gray-500 text-sm">
+                Loading conversations...
+              </div>
+            ) : filteredConversations.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm">
                 No conversations found
               </div>
             ) : (
-              filteredConversations.map((convo) => (
-                <button
-                  key={convo.id}
-                  onClick={() => setSelectedConversation(convo.id)}
-                  className={`w-full p-3 flex items-start gap-3 hover:bg-gray-50 transition-colors ${
-                    selectedConversation === convo.id ? "bg-gray-50" : ""
-                  }`}
-                >
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-medium text-gray-600">{convo.vendorLogo}</span>
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900 truncate">{convo.vendor}</p>
-                      <span className="text-xs text-gray-500">{convo.time}</span>
+              filteredConversations.map((convo) => {
+                const otherUser = getOtherUser(convo);
+                return (
+                  <button
+                    key={convo.id}
+                    onClick={() => setSelectedConversationId(convo.id)}
+                    className={`w-full p-3 flex items-start gap-3 hover:bg-gray-50 transition-colors ${
+                      selectedConversationId === convo.id ? "bg-gray-50" : ""
+                    }`}
+                  >
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-gray-600">
+                        {getInitials(otherUser.first_name, otherUser.last_name)}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500 truncate">{convo.lastMessage}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{convo.order}</p>
-                  </div>
-                  {convo.unread > 0 && (
-                    <span className="w-5 h-5 bg-gray-900 text-white text-xs rounded-full flex items-center justify-center">
-                      {convo.unread}
-                    </span>
-                  )}
-                </button>
-              ))
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {otherUser.first_name} {otherUser.last_name}
+                        </p>
+                        <span className="text-xs text-gray-500">
+                          {convo.latest_message && formatConversationTime(convo.latest_message.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
+                        {convo.latest_message?.message || "No messages yet"}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {otherUser.roles[0]?.name || "User"}
+                      </p>
+                    </div>
+                    {convo.unread_count > 0 && (
+                      <span className="w-5 h-5 bg-gray-900 text-white text-xs rounded-full flex items-center justify-center">
+                        {convo.unread_count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col">
-          {selectedConvo ? (
+          {selectedConvo && currentConversation ? (
             <>
               {/* Chat Header */}
               <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-600">{selectedConvo.vendorLogo}</span>
+                    <span className="text-sm font-medium text-gray-600">
+                      {getInitials(
+                        getOtherUser(selectedConvo).first_name,
+                        getOtherUser(selectedConvo).last_name
+                      )}
+                    </span>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{selectedConvo.vendor}</p>
-                    <p className="text-xs text-gray-500">{selectedConvo.order}</p>
+                    <p className="font-medium text-gray-900">
+                      {getOtherUser(selectedConvo).first_name}{" "}
+                      {getOtherUser(selectedConvo).last_name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {getOtherUser(selectedConvo).roles[0]?.name || "User"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -171,34 +272,38 @@ export default function MessagesPage() {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === "customer" ? "justify-end" : "justify-start"}`}
-                  >
+                {currentConversation.messages && currentConversation.messages.length > 0 ? (
+                  currentConversation.messages.map((msg) => (
                     <div
-                      className={`max-w-[70%] px-4 py-2 rounded-2xl ${
-                        msg.sender === "customer"
-                          ? "bg-gray-900 text-white rounded-br-md"
-                          : "bg-gray-100 text-gray-900 rounded-bl-md"
-                      }`}
+                      key={msg.id}
+                      className={`flex ${isOwnMessage(msg) ? "justify-end" : "justify-start"}`}
                     >
-                      <p className="text-sm">{msg.message}</p>
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${
-                        msg.sender === "customer" ? "text-gray-400" : "text-gray-500"
-                      }`}>
-                        <span className="text-xs">{msg.time}</span>
-                        {msg.sender === "customer" && (
-                          msg.read ? (
-                            <CheckCheck className="h-3 w-3" />
-                          ) : (
-                            <Check className="h-3 w-3" />
-                          )
-                        )}
+                      <div
+                        className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                          isOwnMessage(msg)
+                            ? "bg-gray-900 text-white rounded-br-md"
+                            : "bg-gray-100 text-gray-900 rounded-bl-md"
+                        }`}
+                      >
+                        <p className="text-sm">{msg.message}</p>
+                        <div
+                          className={`flex items-center justify-end gap-1 mt-1 ${
+                            isOwnMessage(msg) ? "text-gray-400" : "text-gray-500"
+                          }`}
+                        >
+                          <span className="text-xs">{formatMessageTime(msg.created_at)}</span>
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm text-gray-500">
+                    No messages yet. Start the conversation!
                   </div>
-                ))}
+                )}
+                {/* Typing indicator */}
+                {isTyping && <TypingIndicator userName={typingUserName || undefined} />}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* Message Input */}
@@ -208,18 +313,19 @@ export default function MessagesPage() {
                     type="text"
                     placeholder="Type a message..."
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={handleMessageChange}
                     onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:opacity-50"
                   />
                   <button
                     onClick={handleSendMessage}
-                    disabled={!newMessage.trim()}
+                    disabled={!newMessage.trim() || loading}
                     className={`p-2 rounded-full ${
                       newMessage.trim()
                         ? "bg-gray-900 text-white hover:bg-gray-800"
                         : "bg-gray-100 text-gray-400"
-                    }`}
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <Send className="h-5 w-5" />
                   </button>

@@ -16,6 +16,8 @@ import {
   History,
   Settings,
 } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchUnreadCount } from "@/store/slices/chatSlice";
 
 interface TechnicianSidebarProps {
   isCollapsed: boolean;
@@ -76,6 +78,8 @@ const navigation: NavItem[] = [
 
 export function TechnicianSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: TechnicianSidebarProps) {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { unreadCount } = useAppSelector((state) => state.chat);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -90,6 +94,17 @@ export function TechnicianSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: 
       }
     });
   }, [pathname]);
+
+  // Fetch unread count on mount and poll every 30 seconds
+  useEffect(() => {
+    dispatch(fetchUnreadCount());
+
+    const interval = setInterval(() => {
+      dispatch(fetchUnreadCount());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [dispatch]);
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>
@@ -179,6 +194,11 @@ export function TechnicianSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: 
                   >
                     <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
                     {!isCollapsed && <span className="truncate">{item.name}</span>}
+                    {item.name === "Messages" && unreadCount > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 ) : (
                   <>

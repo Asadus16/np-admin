@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, MoreVertical, Eye, Ban, UserCheck, Download, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, MoreVertical, Eye, Ban, UserCheck, Download, Loader2, MessageSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppDispatch } from "@/store/hooks";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
 
 interface Customer {
   id: string;
@@ -27,6 +30,8 @@ interface PaginatedResponse {
 
 export default function CustomersPage() {
   const { token } = useAuth();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +117,22 @@ export default function CustomersPage() {
       setOpenDropdown(null);
     } catch (err) {
       console.error("Failed to unsuspend customer:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSendMessage = async (customerId: string) => {
+    setActionLoading(customerId);
+    setOpenDropdown(null);
+
+    try {
+      // Start or get conversation with this customer
+      await dispatch(startOrGetConversation(customerId)).unwrap();
+      // Navigate to messages page
+      router.push("/admin/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
     } finally {
       setActionLoading(null);
     }
@@ -234,6 +255,18 @@ export default function CustomersPage() {
                               <Eye className="h-4 w-4 mr-2" />
                               View Profile
                             </Link>
+                            <button
+                              onClick={() => handleSendMessage(customer.id)}
+                              disabled={actionLoading === customer.id}
+                              className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                              {actionLoading === customer.id ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                              )}
+                              Send Message
+                            </button>
                             {customer.status === "active" ? (
                               <button
                                 onClick={() => handleSuspend(customer.id)}
