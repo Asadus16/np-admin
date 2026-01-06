@@ -2,13 +2,16 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2, Building2, AlertCircle, X, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, Loader2, Building2, AlertCircle, X, Calendar, MessageSquare } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchApprovedCompanies, clearError } from "@/store/slices/companySlice";
 import { fetchCategories } from "@/store/slices/categorySlice";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
 
 export default function VendorsPage() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
   const { approvedCompanies, isLoading, error, approvedPagination } = useAppSelector(
     (state) => state.company
   );
@@ -21,6 +24,7 @@ export default function VendorsPage() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [messageLoading, setMessageLoading] = useState<string | null>(null);
 
   // Get unique service areas from all vendors
   const uniqueServiceAreas = useMemo(() => {
@@ -46,6 +50,22 @@ export default function VendorsPage() {
       return () => document.removeEventListener("click", handleClickOutside);
     }
   }, [openMenu]);
+
+  const handleSendMessage = async (userId: string) => {
+    setMessageLoading(userId);
+    setOpenMenu(null);
+
+    try {
+      // Start or get conversation with this vendor
+      await dispatch(startOrGetConversation(userId)).unwrap();
+      // Navigate to messages page
+      router.push("/admin/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
+    } finally {
+      setMessageLoading(null);
+    }
+  };
 
   const filteredVendors = approvedCompanies.filter((company) => {
     // Search filter
@@ -270,13 +290,25 @@ export default function VendorsPage() {
                           <MoreHorizontal className="h-4 w-4 text-gray-500" />
                         </button>
                         {openMenu === vendor.id && (
-                          <div className="absolute right-0 mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                          <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                             <Link
                               href={`/admin/vendors/${vendor.id}`}
                               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
                             >
                               <Eye className="h-4 w-4" /> View
                             </Link>
+                            <button
+                              onClick={() => handleSendMessage(vendor.user_id)}
+                              disabled={messageLoading === vendor.user_id}
+                              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full disabled:opacity-50"
+                            >
+                              {messageLoading === vendor.user_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4" />
+                              )}
+                              Message
+                            </button>
                             <Link
                               href={`/admin/vendors/${vendor.id}/edit`}
                               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"

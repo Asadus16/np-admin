@@ -12,6 +12,7 @@
     "@reduxjs/toolkit": "^2.11.2",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.0",
+    "date-fns": "^4.1.0",
     "firebase": "^12.7.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.562.0",
@@ -20,7 +21,8 @@
     "react-dom": "19.2.3",
     "react-leaflet": "^5.0.0",
     "react-redux": "^9.2.0",
-    "recharts": "^3.6.0"
+    "recharts": "^3.6.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
