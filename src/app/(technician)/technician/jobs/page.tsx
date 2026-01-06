@@ -16,11 +16,14 @@ import {
   RefreshCw,
   CheckCircle2,
   ClipboardList,
+  XCircle,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchJobs,
   fetchJobStats,
+  fetchAvailability,
+  toggleAvailability,
   setFilter,
   clearError,
 } from "@/store/slices/technicianJobSlice";
@@ -29,7 +32,7 @@ import { formatDate, formatTime } from "@/lib/vendorOrder";
 
 export default function JobsPage() {
   const dispatch = useAppDispatch();
-  const { jobs, stats, filter, isLoading, error } = useAppSelector(
+  const { jobs, stats, filter, isAvailable, isLoading, error } = useAppSelector(
     (state) => state.technicianJob
   );
 
@@ -39,6 +42,7 @@ export default function JobsPage() {
   useEffect(() => {
     dispatch(fetchJobs({ status: filter.status, date: filter.date || undefined }));
     dispatch(fetchJobStats());
+    dispatch(fetchAvailability());
   }, [dispatch, filter.status, filter.date]);
 
   const handleRefresh = () => {
@@ -142,15 +146,51 @@ export default function JobsPage() {
             View and manage your assigned jobs
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => dispatch(toggleAvailability(!isAvailable))}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+              isAvailable
+                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {isAvailable ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 inline mr-1" />
+                Available
+              </>
+            ) : (
+              <>
+                <XCircle className="h-4 w-4 inline mr-1" />
+                Unavailable
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {!isAvailable && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium text-yellow-900">You are currently unavailable</p>
+              <p className="text-sm text-yellow-700 mt-1">
+                You won't receive new job assignments. You can still complete your current jobs.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       {stats && (

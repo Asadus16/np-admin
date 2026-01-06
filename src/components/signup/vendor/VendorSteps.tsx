@@ -817,7 +817,16 @@ export default function VendorSteps({
             <p className="text-xs font-medium text-gray-900">Trade License</p>
             <p className="text-[10px] text-gray-500 mb-1">PDF/JPG (Required)</p>
             {formData.tradeLicenseFile ? (
-              <p className="text-xs text-green-600 truncate">{formData.tradeLicenseFile.name}</p>
+              <div className="space-y-1">
+                <p className="text-xs text-green-600 truncate">{formData.tradeLicenseFile.name}</p>
+                <button
+                  type="button"
+                  onClick={() => tradeLicenseInputRef.current?.click()}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Change
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -842,7 +851,16 @@ export default function VendorSteps({
             <p className="text-xs font-medium text-gray-900">VAT Certificate</p>
             <p className="text-[10px] text-gray-500 mb-1">PDF/JPG (Optional)</p>
             {formData.vatCertificateFile ? (
-              <p className="text-xs text-green-600 truncate">{formData.vatCertificateFile.name}</p>
+              <div className="space-y-1">
+                <p className="text-xs text-green-600 truncate">{formData.vatCertificateFile.name}</p>
+                <button
+                  type="button"
+                  onClick={() => vatCertificateInputRef.current?.click()}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Change
+                </button>
+              </div>
             ) : (
               <button
                 type="button"

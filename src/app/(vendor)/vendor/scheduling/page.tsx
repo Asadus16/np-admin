@@ -1,112 +1,209 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Clock, User, X, Plus, CalendarOff, Users } from "lucide-react";
-
-const today = new Date();
-const currentMonth = today.toLocaleString("default", { month: "long", year: "numeric" });
-
-const technicians = [
-  { id: 1, name: "Mike J.", fullName: "Mike Johnson", color: "blue" },
-  { id: 2, name: "John D.", fullName: "John Davis", color: "green" },
-  { id: 3, name: "Sarah S.", fullName: "Sarah Smith", color: "purple" },
-  { id: 4, name: "Emily B.", fullName: "Emily Brown", color: "orange" },
-];
-
-const initialEvents = [
-  { id: 1, title: "Plumbing Repair", customer: "John Smith", time: "9:00 AM", duration: 60, technician: "Mike J.", day: 18 },
-  { id: 2, title: "Drain Cleaning", customer: "Sarah Johnson", time: "11:00 AM", duration: 90, technician: "Mike J.", day: 18 },
-  { id: 3, title: "Water Heater Install", customer: "Mike Brown", time: "2:00 PM", duration: 180, technician: "John D.", day: 19 },
-  { id: 4, title: "Pipe Inspection", customer: "Emily Davis", time: "10:00 AM", duration: 45, technician: "Mike J.", day: 20 },
-  { id: 5, title: "Faucet Replacement", customer: "Robert Wilson", time: "3:00 PM", duration: 45, technician: "John D.", day: 20 },
-  { id: 6, title: "Bathroom Renovation", customer: "Lisa White", time: "9:00 AM", duration: 240, technician: "Sarah S.", day: 19 },
-  { id: 7, title: "Leak Repair", customer: "Tom Green", time: "2:00 PM", duration: 60, technician: "Sarah S.", day: 20 },
-];
-
-const initialBlockedDates = [
-  { id: 1, technician: "Mike J.", date: 21, reason: "Personal Leave" },
-  { id: 2, technician: "John D.", date: 23, reason: "Training" },
-  { id: 3, technician: "Sarah S.", date: 22, reason: "Medical Appointment" },
-];
+import { useState, useEffect } from "react";
+import { ChevronLeft, ChevronRight, Clock, User, Users, Loader2, AlertCircle, RefreshCw, X, Calendar } from "lucide-react";
+import { getVendorOrders } from "@/lib/vendorOrder";
+import { getTechnicians, assignTechnician } from "@/lib/technician";
+import { getVendorCompany, getCalendarHoursFromCompanyHours } from "@/lib/vendorCompany";
+import { VendorOrder } from "@/types/vendorOrder";
+import { Technician } from "@/types/technician";
 
 export default function SchedulingPage() {
+  const [orders, setOrders] = useState<VendorOrder[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Calendar hours range
+  const [calendarStartHour, setCalendarStartHour] = useState(8);
+  const [calendarEndHour, setCalendarEndHour] = useState(22);
+
   const [view, setView] = useState<"week" | "day">("week");
-  const [selectedDate, setSelectedDate] = useState(18);
-  const [selectedTechnician, setSelectedTechnician] = useState<string>("all");
-  const [events] = useState(initialEvents);
-  const [blockedDates, setBlockedDates] = useState(initialBlockedDates);
-  const [showBlockedModal, setShowBlockedModal] = useState(false);
-  const [newBlockedDate, setNewBlockedDate] = useState({
-    technician: "",
-    date: "",
-    reason: "",
-  });
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState<string>("all");
+  const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStart(new Date()));
 
-  const weekDays = [
-    { day: "Mon", date: 18 },
-    { day: "Tue", date: 19 },
-    { day: "Wed", date: 20 },
-    { day: "Thu", date: 21 },
-    { day: "Fri", date: 22 },
-    { day: "Sat", date: 23 },
-    { day: "Sun", date: 24 },
-  ];
+  // Assignment modal state
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<VendorOrder | null>(null);
+  const [assigningTechId, setAssigningTechId] = useState<string | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
 
-  const hours = Array.from({ length: 12 }, (_, i) => i + 8);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const filteredEvents = selectedTechnician === "all"
-    ? events
-    : events.filter((e) => e.technician === selectedTechnician);
-
-  const getEventsForDay = (date: number) => filteredEvents.filter((e) => e.day === date);
-
-  const getBlockedForDay = (date: number) => {
-    if (selectedTechnician === "all") {
-      return blockedDates.filter((b) => b.date === date);
-    }
-    return blockedDates.filter((b) => b.date === date && b.technician === selectedTechnician);
-  };
-
-  const isDateBlocked = (date: number, technician?: string) => {
-    if (technician) {
-      return blockedDates.some((b) => b.date === date && b.technician === technician);
-    }
-    if (selectedTechnician === "all") {
-      return blockedDates.some((b) => b.date === date);
-    }
-    return blockedDates.some((b) => b.date === date && b.technician === selectedTechnician);
-  };
-
-  const getTechnicianColor = (techName: string) => {
-    const tech = technicians.find((t) => t.name === techName);
-    switch (tech?.color) {
-      case "blue": return "bg-blue-50 border-blue-500 text-blue-900";
-      case "green": return "bg-green-50 border-green-500 text-green-900";
-      case "purple": return "bg-purple-50 border-purple-500 text-purple-900";
-      case "orange": return "bg-orange-50 border-orange-500 text-orange-900";
-      default: return "bg-gray-50 border-gray-500 text-gray-900";
-    }
-  };
-
-  const handleAddBlockedDate = () => {
-    if (newBlockedDate.technician && newBlockedDate.date && newBlockedDate.reason) {
-      setBlockedDates([
-        ...blockedDates,
-        {
-          id: blockedDates.length + 1,
-          technician: newBlockedDate.technician,
-          date: parseInt(newBlockedDate.date),
-          reason: newBlockedDate.reason,
-        },
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [ordersResponse, techniciansResponse, companyResponse] = await Promise.all([
+        getVendorOrders({ status: "confirmed,in_progress" }),
+        getTechnicians(),
+        getVendorCompany(),
       ]);
-      setNewBlockedDate({ technician: "", date: "", reason: "" });
-      setShowBlockedModal(false);
+      setOrders(ordersResponse.data);
+      setTechnicians(techniciansResponse.data);
+
+      // Calculate calendar hours from company hours
+      if (companyResponse.data.company_hours && companyResponse.data.company_hours.length > 0) {
+        const { startHour, endHour } = getCalendarHoursFromCompanyHours(companyResponse.data.company_hours);
+        setCalendarStartHour(startHour);
+        setCalendarEndHour(endHour);
+      }
+    } catch (err) {
+      setError("Failed to load scheduling data");
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleRemoveBlockedDate = (id: number) => {
-    setBlockedDates(blockedDates.filter((b) => b.id !== id));
+  function getWeekStart(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    return new Date(d.setDate(diff));
+  }
+
+  function getWeekDays(startDate: Date) {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  }
+
+  const weekDays = getWeekDays(currentWeekStart);
+  const hours = Array.from({ length: calendarEndHour - calendarStartHour }, (_, i) => i + calendarStartHour);
+
+  const handlePrevWeek = () => {
+    const newStart = new Date(currentWeekStart);
+    newStart.setDate(currentWeekStart.getDate() - 7);
+    setCurrentWeekStart(newStart);
   };
+
+  const handleNextWeek = () => {
+    const newStart = new Date(currentWeekStart);
+    newStart.setDate(currentWeekStart.getDate() + 7);
+    setCurrentWeekStart(newStart);
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentWeekStart(getWeekStart(today));
+    setSelectedDate(today);
+  };
+
+  const handleRefresh = () => {
+    loadData();
+  };
+
+  const handleJobClick = (order: VendorOrder) => {
+    // Only allow assignment for unassigned jobs
+    if (!order.technician) {
+      setSelectedOrder(order);
+      setShowAssignmentModal(true);
+    }
+  };
+
+  const handleAssignTechnician = async (technicianId: string) => {
+    if (!selectedOrder) return;
+
+    setIsAssigning(true);
+    setAssigningTechId(technicianId);
+    try {
+      await assignTechnician(selectedOrder.id, technicianId);
+      setShowAssignmentModal(false);
+      setSelectedOrder(null);
+      // Refresh orders to show the updated assignment
+      await loadData();
+    } catch (err) {
+      console.error("Failed to assign technician:", err);
+      setError("Failed to assign technician");
+    } finally {
+      setIsAssigning(false);
+      setAssigningTechId(null);
+    }
+  };
+
+  // Filter scheduled orders
+  const scheduledOrders = orders.filter(
+    (order) =>
+      order.scheduled_date &&
+      order.scheduled_time &&
+      (order.status === "confirmed" || order.status === "in_progress")
+  );
+
+  // Filter by technician
+  const filteredOrders =
+    selectedTechnicianId === "all"
+      ? scheduledOrders
+      : scheduledOrders.filter((order) => order.technician?.id === selectedTechnicianId);
+
+  // Get orders for a specific day
+  const getOrdersForDay = (date: Date) => {
+    const dateStr = date.toISOString().split("T")[0];
+    return filteredOrders.filter((order) => order.scheduled_date === dateStr);
+  };
+
+  // Get orders for a specific hour on a specific day
+  const getOrdersForDayAndHour = (date: Date, hour: number) => {
+    const dateStr = date.toISOString().split("T")[0];
+    return filteredOrders.filter((order) => {
+      if (order.scheduled_date !== dateStr || !order.scheduled_time) return false;
+      const orderHour = parseInt(order.scheduled_time.split(":")[0]);
+      return orderHour === hour;
+    });
+  };
+
+  const formatTime = (timeString: string) => {
+    if (!timeString) return "";
+    const [hours, minutes] = timeString.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const getTechnicianColor = (techId?: string) => {
+    if (!techId) return "bg-gray-50 border-gray-500 text-gray-900";
+    const colors = [
+      "bg-blue-50 border-blue-500 text-blue-900",
+      "bg-green-50 border-green-500 text-green-900",
+      "bg-purple-50 border-purple-500 text-purple-900",
+      "bg-orange-50 border-orange-500 text-orange-900",
+      "bg-pink-50 border-pink-500 text-pink-900",
+    ];
+    const index = technicians.findIndex((t) => t.id === techId);
+    return colors[index % colors.length];
+  };
+
+  const isSameDay = (date1: Date, date2: Date) => {
+    return (
+      date1.getDate() === date2.getDate() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getFullYear() === date2.getFullYear()
+    );
+  };
+
+  if (isLoading && orders.length === 0 && technicians.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -117,11 +214,12 @@ export default function SchedulingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowBlockedModal(true)}
-            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
           >
-            <CalendarOff className="h-4 w-4 mr-2" />
-            Blocked Dates
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
@@ -144,6 +242,19 @@ export default function SchedulingPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={handleRefresh}
+            className="ml-auto text-sm font-medium text-red-700 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Technician Filter */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-center gap-4">
@@ -153,9 +264,9 @@ export default function SchedulingPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setSelectedTechnician("all")}
+              onClick={() => setSelectedTechnicianId("all")}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                selectedTechnician === "all"
+                selectedTechnicianId === "all"
                   ? "bg-gray-900 text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
@@ -165,36 +276,38 @@ export default function SchedulingPage() {
             {technicians.map((tech) => (
               <button
                 key={tech.id}
-                onClick={() => setSelectedTechnician(tech.name)}
+                onClick={() => setSelectedTechnicianId(tech.id)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  selectedTechnician === tech.name
-                    ? tech.color === "blue" ? "bg-blue-600 text-white"
-                    : tech.color === "green" ? "bg-green-600 text-white"
-                    : tech.color === "purple" ? "bg-purple-600 text-white"
-                    : "bg-orange-600 text-white"
+                  selectedTechnicianId === tech.id
+                    ? "bg-gray-900 text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
               >
-                {tech.fullName}
+                {tech.first_name} {tech.last_name}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Calendar Header */}
+      {/* Calendar */}
       <div className="bg-white border border-gray-200 rounded-lg">
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
+            <button onClick={handlePrevWeek} className="p-2 hover:bg-gray-100 rounded-lg">
               <ChevronLeft className="h-5 w-5 text-gray-500" />
             </button>
-            <h2 className="text-lg font-medium text-gray-900">{currentMonth}</h2>
-            <button className="p-2 hover:bg-gray-100 rounded-lg">
+            <h2 className="text-lg font-medium text-gray-900">
+              {currentWeekStart.toLocaleString("default", { month: "long", year: "numeric" })}
+            </h2>
+            <button onClick={handleNextWeek} className="p-2 hover:bg-gray-100 rounded-lg">
               <ChevronRight className="h-5 w-5 text-gray-500" />
             </button>
           </div>
-          <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+          <button
+            onClick={handleToday}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
             Today
           </button>
         </div>
@@ -208,29 +321,38 @@ export default function SchedulingPage() {
                 <div className="p-3 text-xs font-medium text-gray-500 uppercase text-center border-r border-gray-200">
                   Time
                 </div>
-                {weekDays.map((d) => (
-                  <div
-                    key={d.date}
-                    className={`p-3 text-center border-r border-gray-200 last:border-r-0 ${
-                      d.date === selectedDate ? "bg-gray-50" : ""
-                    } ${isDateBlocked(d.date) ? "bg-red-50" : ""}`}
-                  >
-                    <p className="text-xs font-medium text-gray-500 uppercase">{d.day}</p>
-                    <p className={`text-lg font-semibold ${
-                      d.date === 18 ? "text-gray-900 bg-gray-900 text-white w-8 h-8 rounded-full mx-auto flex items-center justify-center" : "text-gray-900"
-                    }`}>
-                      {d.date}
-                    </p>
-                    {getBlockedForDay(d.date).length > 0 && (
-                      <div className="mt-1">
-                        <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">
-                          <CalendarOff className="h-3 w-3 mr-0.5" />
-                          {getBlockedForDay(d.date).length}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {weekDays.map((day, idx) => {
+                  const isToday = isSameDay(day, new Date());
+                  const ordersCount = getOrdersForDay(day).length;
+                  return (
+                    <div
+                      key={idx}
+                      className={`p-3 text-center border-r border-gray-200 last:border-r-0 ${
+                        isToday ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-gray-500 uppercase">
+                        {day.toLocaleDateString("en-US", { weekday: "short" })}
+                      </p>
+                      <p
+                        className={`text-lg font-semibold ${
+                          isToday
+                            ? "text-white bg-gray-900 w-8 h-8 rounded-full mx-auto flex items-center justify-center"
+                            : "text-gray-900"
+                        }`}
+                      >
+                        {day.getDate()}
+                      </p>
+                      {ordersCount > 0 && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+                            {ordersCount} job{ordersCount !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Time Grid */}
@@ -240,22 +362,38 @@ export default function SchedulingPage() {
                     <div className="p-2 text-xs text-gray-500 text-right pr-3 border-r border-gray-200">
                       {hour > 12 ? `${hour - 12}:00 PM` : `${hour}:00 AM`}
                     </div>
-                    {weekDays.map((d) => (
-                      <div key={d.date} className="h-16 border-r border-gray-100 last:border-r-0 relative">
-                        {getEventsForDay(d.date)
-                          .filter((e) => parseInt(e.time) === hour || (hour === 9 && e.time === "9:00 AM") || (hour === 11 && e.time === "11:00 AM") || (hour === 14 && e.time === "2:00 PM") || (hour === 10 && e.time === "10:00 AM") || (hour === 15 && e.time === "3:00 PM"))
-                          .map((event) => (
+                    {weekDays.map((day, dayIdx) => {
+                      const ordersInHour = getOrdersForDayAndHour(day, hour);
+                      return (
+                        <div
+                          key={dayIdx}
+                          className="h-16 border-r border-gray-100 last:border-r-0 relative p-1"
+                        >
+                          {ordersInHour.map((order) => (
                             <div
-                              key={event.id}
-                              className={`absolute left-1 right-1 top-1 border-l-2 rounded p-1 cursor-pointer ${getTechnicianColor(event.technician)}`}
-                              style={{ minHeight: `${(event.duration / 60) * 64 - 8}px` }}
+                              key={order.id}
+                              onClick={() => handleJobClick(order)}
+                              className={`absolute left-1 right-1 top-1 border-l-2 rounded p-1 cursor-pointer text-xs transition-all hover:shadow-md ${
+                                !order.technician ? "animate-pulse border-yellow-500" : ""
+                              } ${getTechnicianColor(order.technician?.id)}`}
+                              style={{
+                                minHeight: `${Math.min((order.total_duration_minutes / 60) * 64 - 8, 56)}px`,
+                              }}
+                              title={!order.technician ? "Click to assign technician" : ""}
                             >
-                              <p className="text-xs font-medium truncate">{event.title}</p>
-                              <p className="text-xs opacity-75 truncate">{event.technician}</p>
+                              <p className="font-medium truncate">
+                                {order.items.length > 0 ? order.items[0].sub_service_name : "Service"}
+                              </p>
+                              <p className="opacity-75 truncate">
+                                {order.technician
+                                  ? `${order.technician.first_name} ${order.technician.last_name}`
+                                  : "Click to assign"}
+                              </p>
                             </div>
                           ))}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
@@ -265,57 +403,59 @@ export default function SchedulingPage() {
           /* Day View */
           <div className="p-4">
             <div className="flex items-center gap-4 mb-6">
-              <p className="text-lg font-medium text-gray-900">March {selectedDate}, 2024</p>
-              <span className="text-sm text-gray-500">{getEventsForDay(selectedDate).length} jobs scheduled</span>
+              <p className="text-lg font-medium text-gray-900">{formatDate(selectedDate)}</p>
+              <span className="text-sm text-gray-500">
+                {getOrdersForDay(selectedDate).length} job
+                {getOrdersForDay(selectedDate).length !== 1 ? "s" : ""} scheduled
+              </span>
             </div>
             <div className="space-y-3">
-              {getEventsForDay(selectedDate).map((event) => (
-                <div key={event.id} className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-300">
-                  <div className="w-16 text-center">
-                    <p className="text-sm font-medium text-gray-900">{event.time}</p>
-                    <p className="text-xs text-gray-500">{event.duration} min</p>
+              {getOrdersForDay(selectedDate).map((order) => (
+                <div
+                  key={order.id}
+                  onClick={() => handleJobClick(order)}
+                  className={`flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-all ${
+                    !order.technician ? "cursor-pointer border-yellow-300 bg-yellow-50/30" : "cursor-default"
+                  }`}
+                >
+                  <div className="w-20 text-center">
+                    <p className="text-sm font-medium text-gray-900">
+                      {order.scheduled_time ? formatTime(order.scheduled_time) : "N/A"}
+                    </p>
+                    <p className="text-xs text-gray-500">{order.total_duration_minutes} min</p>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{event.title}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {order.items.map((item) => item.sub_service_name).join(", ")}
+                    </p>
                     <div className="flex items-center gap-4 mt-1">
                       <span className="flex items-center gap-1 text-xs text-gray-500">
                         <User className="h-3 w-3" />
-                        {event.customer}
+                        {order.customer.name}
                       </span>
                       <span className="flex items-center gap-1 text-xs text-gray-500">
                         <Clock className="h-3 w-3" />
-                        {event.technician}
+                        {order.technician
+                          ? `${order.technician.first_name} ${order.technician.last_name}`
+                          : "Unassigned"}
                       </span>
                     </div>
                   </div>
-                  <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                    View
-                  </button>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${
+                      order.status === "in_progress"
+                        ? "bg-purple-100 text-purple-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {order.status === "in_progress" ? "In Progress" : "Confirmed"}
+                  </span>
                 </div>
               ))}
-              {getEventsForDay(selectedDate).length === 0 && (
+              {getOrdersForDay(selectedDate).length === 0 && (
                 <div className="text-center py-12">
+                  <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-sm text-gray-500">No jobs scheduled for this day</p>
-                </div>
-              )}
-
-              {/* Blocked dates for selected day */}
-              {getBlockedForDay(selectedDate).length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    <CalendarOff className="h-4 w-4 text-red-500" />
-                    Blocked/Unavailable
-                  </h3>
-                  <div className="space-y-2">
-                    {getBlockedForDay(selectedDate).map((blocked) => (
-                      <div key={blocked.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium text-red-900">{blocked.technician}</p>
-                          <p className="text-xs text-red-600">{blocked.reason}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
@@ -323,109 +463,111 @@ export default function SchedulingPage() {
         )}
       </div>
 
-      {/* Blocked Dates Modal */}
-      {showBlockedModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Manage Blocked Dates</h2>
+      {/* Assignment Modal */}
+      {showAssignmentModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Assign Technician</h3>
+                <p className="text-sm text-gray-500 mt-1">Order: {selectedOrder.order_number}</p>
+              </div>
               <button
-                onClick={() => setShowBlockedModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                onClick={() => {
+                  setShowAssignmentModal(false);
+                  setSelectedOrder(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-            <div className="p-4 space-y-6">
-              {/* Add New Blocked Date */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-900">Add New Blocked Date</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Technician</label>
-                    <select
-                      value={newBlockedDate.technician}
-                      onChange={(e) => setNewBlockedDate({ ...newBlockedDate, technician: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    >
-                      <option value="">Select technician</option>
-                      {technicians.map((tech) => (
-                        <option key={tech.id} value={tech.name}>{tech.fullName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
-                    <select
-                      value={newBlockedDate.date}
-                      onChange={(e) => setNewBlockedDate({ ...newBlockedDate, date: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    >
-                      <option value="">Select date</option>
-                      {weekDays.map((d) => (
-                        <option key={d.date} value={d.date}>{d.day}, {d.date}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Reason</label>
-                  <input
-                    type="text"
-                    value={newBlockedDate.reason}
-                    onChange={(e) => setNewBlockedDate({ ...newBlockedDate, reason: e.target.value })}
-                    placeholder="e.g., Personal Leave, Training, Medical Appointment"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                  />
-                </div>
-                <button
-                  onClick={handleAddBlockedDate}
-                  disabled={!newBlockedDate.technician || !newBlockedDate.date || !newBlockedDate.reason}
-                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Blocked Date
-                </button>
-              </div>
 
-              {/* Existing Blocked Dates */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-gray-900">Current Blocked Dates</h3>
-                {blockedDates.length === 0 ? (
-                  <p className="text-sm text-gray-500">No blocked dates configured</p>
+            {/* Job Details */}
+            <div className="p-4 border-b border-gray-200 bg-gray-50">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">Customer:</span>
+                  <span className="text-gray-600">{selectedOrder.customer.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">Date:</span>
+                  <span className="text-gray-600">
+                    {new Date(selectedOrder.scheduled_date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">Time:</span>
+                  <span className="text-gray-600">{formatTime(selectedOrder.scheduled_time)}</span>
+                </div>
+                <div className="mt-2">
+                  <span className="font-medium">Services:</span>
+                  <p className="text-gray-600 mt-1">
+                    {selectedOrder.items.map((item) => item.sub_service_name).join(", ")}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Technician List */}
+            <div className="p-4">
+              <p className="text-sm font-medium text-gray-700 mb-3">Select a technician:</p>
+              <div className="space-y-2">
+                {technicians.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No technicians available</p>
                 ) : (
-                  <div className="space-y-2">
-                    {blockedDates.map((blocked) => (
-                      <div key={blocked.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-red-100 rounded-lg">
-                            <CalendarOff className="h-4 w-4 text-red-600" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{blocked.technician}</p>
-                            <p className="text-xs text-gray-500">
-                              {weekDays.find((d) => d.date === blocked.date)?.day}, {blocked.date} - {blocked.reason}
-                            </p>
-                          </div>
+                  technicians.map((tech) => (
+                    <button
+                      key={tech.id}
+                      onClick={() => handleAssignTechnician(tech.id)}
+                      disabled={isAssigning}
+                      className={`w-full p-3 flex items-center justify-between border-2 rounded-lg transition-all ${
+                        assigningTechId === tech.id
+                          ? "border-gray-900 bg-gray-50"
+                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      } disabled:opacity-50`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center">
+                          <span className="text-white font-medium text-sm">
+                            {tech.first_name[0]}
+                            {tech.last_name[0]}
+                          </span>
                         </div>
-                        <button
-                          onClick={() => handleRemoveBlockedDate(blocked.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        <div className="text-left">
+                          <p className="text-sm font-medium text-gray-900">
+                            {tech.first_name} {tech.last_name}
+                          </p>
+                          <p className="text-xs text-gray-500">{tech.email}</p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                      {isAssigning && assigningTechId === tech.id && (
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                      )}
+                    </button>
+                  ))
                 )}
               </div>
             </div>
-            <div className="p-4 border-t border-gray-200 flex justify-end">
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
               <button
-                onClick={() => setShowBlockedModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => {
+                  setShowAssignmentModal(false);
+                  setSelectedOrder(null);
+                }}
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                Close
+                Cancel
               </button>
             </div>
           </div>

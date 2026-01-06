@@ -72,6 +72,17 @@ export default function AvailabilityPage() {
     return tomorrow.toISOString().split("T")[0];
   };
 
+  // Convert 24-hour time to 12-hour format with AM/PM
+  const formatTime12Hour = (time: string): string => {
+    if (!time) return '';
+
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+
+    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
   // Sort unavailable days by date
   const sortedUnavailableDays = [...unavailableDays].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -167,7 +178,7 @@ export default function AvailabilityPage() {
                     {schedule.is_available ? (
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Clock className="h-4 w-4 text-gray-400" />
-                        {schedule.start_time} - {schedule.end_time}
+                        {formatTime12Hour(schedule.start_time)} - {formatTime12Hour(schedule.end_time)}
                       </div>
                     ) : (
                       <span className="text-sm text-gray-400">Off</span>

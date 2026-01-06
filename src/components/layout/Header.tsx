@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PanelLeft, LogOut, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getPrimaryRole, hasRole, getUserFullName } from "@/types/auth";
+import { getUnreadNotifications, getUnreadCount, markNotificationAsRead } from "@/lib/notification";
+import { Notification } from "@/types/notification";
 
 interface HeaderProps {
   isCollapsed: boolean;
@@ -15,17 +17,87 @@ interface HeaderProps {
 export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const { user, logout } = useAuth();
-
-  // Mock notifications data
-  const notifications = [
-    { id: 1, title: "New vendor application", message: "ABC Plumbing submitted an application", time: "5 min ago", unread: true },
-    { id: 2, title: "Payment processed", message: "Payout of $2,500 completed", time: "1 hour ago", unread: true },
-    { id: 3, title: "New review", message: "5-star review for Quick Fix Services", time: "3 hours ago", unread: false },
-  ];
-
-  const unreadCount = notifications.filter(n => n.unread).length;
   const router = useRouter();
+
+  // Fetch notifications on mount and periodically
+  useEffect(() => {
+    if (!user) {
+      // Clear notifications if user logs out
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    loadNotifications();
+    loadUnreadCount();
+
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(() => {
+      // Check if user still exists before polling
+      const token = localStorage.getItem("np_admin_token");
+      if (token) {
+        loadUnreadCount();
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const loadNotifications = async () => {
+    try {
+      setIsLoadingNotifications(true);
+      const data = await getUnreadNotifications(5);
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const count = await getUnreadCount();
+      setUnreadCount(count);
+    } catch (error) {
+      console.error("Failed to load unread count:", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if unread
+    if (!notification.is_read) {
+      try {
+        await markNotificationAsRead(notification.id);
+        // Update local state
+        setNotifications(prev =>
+          prev.map(n => (n.id === notification.id ? { ...n, is_read: true } : n))
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error("Failed to mark notification as read:", error);
+      }
+    }
+  };
+
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -138,25 +210,36 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
                     )}
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                          notification.unread ? "bg-blue-50/50" : ""
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {notification.unread && (
-                            <span className="mt-1.5 h-2 w-2 bg-blue-500 rounded-full flex-shrink-0" />
-                          )}
-                          <div className={notification.unread ? "" : "ml-5"}>
-                            <p className="text-sm font-medium text-gray-900">{notification.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{notification.message}</p>
-                            <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                    {isLoadingNotifications ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        Loading notifications...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        No new notifications
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            !notification.is_read ? "bg-blue-50/50" : ""
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {!notification.is_read && (
+                              <span className="mt-1.5 h-2 w-2 bg-blue-500 rounded-full flex-shrink-0" />
+                            )}
+                            <div className={notification.is_read ? "ml-5" : ""}>
+                              <p className="text-sm font-medium text-gray-900">{notification.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">{notification.message}</p>
+                              <p className="text-xs text-gray-400 mt-1">{formatNotificationTime(notification.created_at)}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                   <div className="px-4 py-2 border-t border-gray-200">
                     <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -28,8 +28,9 @@ import { ApiException } from "@/lib/auth";
 export default function TechnicianAvailabilityPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = use(params);
   const [technician, setTechnician] = useState<Technician | null>(null);
   const [workingHours, setWorkingHoursState] = useState<WorkingHour[]>([]);
   const [unavailableDays, setUnavailableDays] = useState<UnavailableDay[]>([]);
@@ -46,16 +47,16 @@ export default function TechnicianAvailabilityPage({
 
   useEffect(() => {
     loadData();
-  }, [params.id]);
+  }, [id]);
 
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
       const [techResponse, hoursResponse, daysResponse] = await Promise.all([
-        getTechnician(params.id),
-        getWorkingHours(params.id),
-        getUnavailableDays(params.id),
+        getTechnician(id),
+        getWorkingHours(id),
+        getUnavailableDays(id),
       ]);
       setTechnician(techResponse.data);
       setWorkingHoursState(hoursResponse.data);
@@ -96,7 +97,7 @@ export default function TechnicianAvailabilityPage({
     setError(null);
     setSuccess(null);
     try {
-      await setWorkingHours(params.id, {
+      await setWorkingHours(id, {
         working_hours: workingHours.map((wh) => ({
           day_of_week: wh.day_of_week,
           start_time: wh.start_time.substring(0, 5),
@@ -121,7 +122,7 @@ export default function TechnicianAvailabilityPage({
     setIsAddingDay(true);
     setError(null);
     try {
-      const response = await addUnavailableDay(params.id, {
+      const response = await addUnavailableDay(id, {
         date: newDayDate,
         reason: newDayReason || undefined,
       });
@@ -147,7 +148,7 @@ export default function TechnicianAvailabilityPage({
 
   const handleRemoveUnavailableDay = async (dayId: string) => {
     try {
-      await removeUnavailableDay(params.id, dayId);
+      await removeUnavailableDay(id, dayId);
       setUnavailableDays((prev) => prev.filter((d) => d.id !== dayId));
       setConfirmDelete(null);
       setSuccess("Unavailable day removed successfully");
@@ -197,7 +198,7 @@ export default function TechnicianAvailabilityPage({
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
-          href={`/vendor/technicians/${params.id}`}
+          href={`/vendor/technicians/${id}`}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />

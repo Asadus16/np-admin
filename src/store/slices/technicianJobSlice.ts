@@ -4,6 +4,7 @@ import {
   getJob as apiGetJob,
   getJobStats as apiGetJobStats,
   acknowledgeJob as apiAcknowledgeJob,
+  declineJob as apiDeclineJob,
   markOnTheWay as apiMarkOnTheWay,
   markArrived as apiMarkArrived,
   startJob as apiStartJob,
@@ -16,10 +17,14 @@ import {
   getUnavailableDays as apiGetUnavailableDays,
   requestDayOff as apiRequestDayOff,
   cancelDayOff as apiCancelDayOff,
+  getAvailability as apiGetAvailability,
+  toggleAvailability as apiToggleAvailability,
+  getHistoryStats as apiGetHistoryStats,
 } from '@/lib/technicianJob';
 import {
   TechnicianJob,
   TechnicianJobStats,
+  TechnicianHistoryStats,
   TechnicianSchedule,
   TechnicianWorkingHour,
   TechnicianUnavailableDay,
@@ -38,9 +43,12 @@ interface TechnicianJobState {
   jobs: TechnicianJob[];
   currentJob: TechnicianJob | null;
   stats: TechnicianJobStats | null;
+  historyStats: TechnicianHistoryStats | null;
+  historyJobs: TechnicianJob[];
   schedule: TechnicianSchedule | null;
   workingHours: TechnicianWorkingHour[];
   unavailableDays: TechnicianUnavailableDay[];
+  isAvailable: boolean;
   filter: {
     status: string;
     date: string;
@@ -54,9 +62,12 @@ const initialState: TechnicianJobState = {
   jobs: [],
   currentJob: null,
   stats: null,
+  historyStats: null,
+  historyJobs: [],
   schedule: null,
   workingHours: [],
   unavailableDays: [],
+  isAvailable: true,
   filter: {
     status: 'active',
     date: '',
@@ -133,6 +144,50 @@ export const fetchJobStats = createAsyncThunk(
   }
 );
 
+export const fetchHistoryStats = createAsyncThunk(
+  'technicianJob/fetchHistoryStats',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiGetHistoryStats();
+      return response.data;
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to fetch history stats' } as SerializedApiError);
+    }
+  }
+);
+
+export const fetchHistoryJobs = createAsyncThunk(
+  'technicianJob/fetchHistoryJobs',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiGetJobs({ status: 'completed' });
+      return response.data;
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to fetch history' } as SerializedApiError);
+    }
+  }
+);
+
 export const acknowledgeJob = createAsyncThunk(
   'technicianJob/acknowledge',
   async (jobId: string, { rejectWithValue }) => {
@@ -151,6 +206,28 @@ export const acknowledgeJob = createAsyncThunk(
         return rejectWithValue({ message: error.message } as SerializedApiError);
       }
       return rejectWithValue({ message: 'Failed to acknowledge job' } as SerializedApiError);
+    }
+  }
+);
+
+export const declineJob = createAsyncThunk(
+  'technicianJob/decline',
+  async ({ jobId, reason }: { jobId: string; reason: string }, { rejectWithValue }) => {
+    try {
+      await apiDeclineJob(jobId, reason);
+      return jobId;
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to decline job' } as SerializedApiError);
     }
   }
 );
@@ -422,6 +499,50 @@ export const cancelDayOff = createAsyncThunk(
   }
 );
 
+export const fetchAvailability = createAsyncThunk(
+  'technicianJob/fetchAvailability',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiGetAvailability();
+      return response.data.is_available;
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to fetch availability' } as SerializedApiError);
+    }
+  }
+);
+
+export const toggleAvailability = createAsyncThunk(
+  'technicianJob/toggleAvailability',
+  async (isAvailable: boolean, { rejectWithValue }) => {
+    try {
+      const response = await apiToggleAvailability(isAvailable);
+      return response.data.is_available;
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to toggle availability' } as SerializedApiError);
+    }
+  }
+);
+
 const technicianJobSlice = createSlice({
   name: 'technicianJob',
   initialState,
@@ -483,6 +604,34 @@ const technicianJobSlice = createSlice({
         state.stats = action.payload;
       })
       .addCase(fetchJobStats.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as SerializedApiError;
+      });
+
+    builder
+      .addCase(fetchHistoryStats.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchHistoryStats.fulfilled, (state, action: PayloadAction<TechnicianHistoryStats>) => {
+        state.isLoading = false;
+        state.historyStats = action.payload;
+      })
+      .addCase(fetchHistoryStats.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as SerializedApiError;
+      });
+
+    builder
+      .addCase(fetchHistoryJobs.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchHistoryJobs.fulfilled, (state, action: PayloadAction<TechnicianJob[]>) => {
+        state.isLoading = false;
+        state.historyJobs = action.payload;
+      })
+      .addCase(fetchHistoryJobs.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as SerializedApiError;
       });
@@ -692,6 +841,55 @@ const technicianJobSlice = createSlice({
         }
       })
       .addCase(cancelDayOff.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.error = action.payload as SerializedApiError;
+      });
+
+    // Decline job
+    builder
+      .addCase(declineJob.pending, (state) => {
+        state.isSubmitting = true;
+        state.error = null;
+      })
+      .addCase(declineJob.fulfilled, (state, action: PayloadAction<string>) => {
+        state.isSubmitting = false;
+        // Remove from jobs list
+        state.jobs = state.jobs.filter((job) => job.id !== action.payload);
+        if (state.currentJob?.id === action.payload) {
+          state.currentJob = null;
+        }
+      })
+      .addCase(declineJob.rejected, (state, action) => {
+        state.isSubmitting = false;
+        state.error = action.payload as SerializedApiError;
+      });
+
+    // Fetch availability
+    builder
+      .addCase(fetchAvailability.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAvailability.fulfilled, (state, action: PayloadAction<boolean>) => {
+        state.isLoading = false;
+        state.isAvailable = action.payload;
+      })
+      .addCase(fetchAvailability.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as SerializedApiError;
+      });
+
+    // Toggle availability
+    builder
+      .addCase(toggleAvailability.pending, (state) => {
+        state.isSubmitting = true;
+        state.error = null;
+      })
+      .addCase(toggleAvailability.fulfilled, (state, action: PayloadAction<boolean>) => {
+        state.isSubmitting = false;
+        state.isAvailable = action.payload;
+      })
+      .addCase(toggleAvailability.rejected, (state, action) => {
         state.isSubmitting = false;
         state.error = action.payload as SerializedApiError;
       });
