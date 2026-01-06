@@ -24,6 +24,8 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchUnreadCount } from "@/store/slices/chatSlice";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -147,6 +149,8 @@ const navigation: NavItem[] = [
 
 export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { unreadCount } = useAppSelector((state) => state.chat);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -161,6 +165,11 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
       }
     });
   }, [pathname]);
+
+  // Fetch unread count on mount only
+  useEffect(() => {
+    dispatch(fetchUnreadCount());
+  }, [dispatch]);
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>
@@ -250,6 +259,11 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
                   >
                     <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
                     {!isCollapsed && <span className="truncate">{item.name}</span>}
+                    {item.name === "Messages" && unreadCount > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 ) : (
                   <>
