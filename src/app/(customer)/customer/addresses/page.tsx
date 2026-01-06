@@ -291,8 +291,8 @@ export default function AddressesPage() {
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Pin Location</label>
             <LocationPicker
-              latitude={formData.latitude}
-              longitude={formData.longitude}
+              latitude={formData.latitude ?? null}
+              longitude={formData.longitude ?? null}
               onLocationChange={handleLocationChange}
               height="200px"
               autoFetch={!editingId}

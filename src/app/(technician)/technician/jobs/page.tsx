@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -11,152 +11,186 @@ import {
   Navigation,
   Phone,
   Eye,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
+  CheckCircle2,
+  ClipboardList,
 } from "lucide-react";
-
-const jobs = [
-  {
-    id: "JOB-1234",
-    orderId: "ORD-5678",
-    customer: "John Smith",
-    service: "Pipe Leak Repair",
-    category: "Plumbing",
-    address: "Villa 24, Palm Jumeirah, Dubai",
-    scheduledDate: "2024-12-28",
-    scheduledTime: "10:00 AM",
-    status: "in_progress",
-    phone: "+971 50 123 4567",
-  },
-  {
-    id: "JOB-1235",
-    orderId: "ORD-5679",
-    customer: "Sarah Johnson",
-    service: "Faucet Installation",
-    category: "Plumbing",
-    address: "Apt 1502, Marina Heights, Dubai Marina",
-    scheduledDate: "2024-12-28",
-    scheduledTime: "2:00 PM",
-    status: "assigned",
-    phone: "+971 50 234 5678",
-  },
-  {
-    id: "JOB-1236",
-    orderId: "ORD-5680",
-    customer: "Mike Brown",
-    service: "Water Heater Check",
-    category: "Plumbing",
-    address: "Villa 8, Emirates Hills, Dubai",
-    scheduledDate: "2024-12-28",
-    scheduledTime: "4:30 PM",
-    status: "assigned",
-    phone: "+971 50 345 6789",
-  },
-  {
-    id: "JOB-1237",
-    orderId: "ORD-5681",
-    customer: "Emily Davis",
-    service: "Drain Cleaning",
-    category: "Plumbing",
-    address: "Apt 804, JBR Walk, Dubai",
-    scheduledDate: "2024-12-29",
-    scheduledTime: "9:00 AM",
-    status: "assigned",
-    phone: "+971 50 456 7890",
-  },
-  {
-    id: "JOB-1238",
-    orderId: "ORD-5682",
-    customer: "Robert Wilson",
-    service: "Pipe Replacement",
-    category: "Plumbing",
-    address: "Villa 12, Arabian Ranches, Dubai",
-    scheduledDate: "2024-12-29",
-    scheduledTime: "11:30 AM",
-    status: "assigned",
-    phone: "+971 50 567 8901",
-  },
-  {
-    id: "JOB-1233",
-    orderId: "ORD-5677",
-    customer: "Lisa White",
-    service: "Toilet Repair",
-    category: "Plumbing",
-    address: "Apt 2301, Downtown Views, Dubai",
-    scheduledDate: "2024-12-27",
-    scheduledTime: "3:00 PM",
-    status: "completed",
-    phone: "+971 50 678 9012",
-  },
-  {
-    id: "JOB-1232",
-    orderId: "ORD-5676",
-    customer: "Tom Green",
-    service: "Sink Installation",
-    category: "Plumbing",
-    address: "Villa 5, Jumeirah Islands, Dubai",
-    scheduledDate: "2024-12-27",
-    scheduledTime: "10:00 AM",
-    status: "completed",
-    phone: "+971 50 789 0123",
-  },
-];
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import {
+  fetchJobs,
+  fetchJobStats,
+  setFilter,
+  clearError,
+} from "@/store/slices/technicianJobSlice";
+import { TechnicianJob, TechnicianStatus } from "@/types/technicianJob";
+import { formatDate, formatTime } from "@/lib/vendorOrder";
 
 export default function JobsPage() {
+  const dispatch = useAppDispatch();
+  const { jobs, stats, filter, isLoading, error } = useAppSelector(
+    (state) => state.technicianJob
+  );
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [dateFilter, setDateFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
 
+  useEffect(() => {
+    dispatch(fetchJobs({ status: filter.status, date: filter.date || undefined }));
+    dispatch(fetchJobStats());
+  }, [dispatch, filter.status, filter.date]);
+
+  const handleRefresh = () => {
+    dispatch(fetchJobs({ status: filter.status, date: filter.date || undefined }));
+    dispatch(fetchJobStats());
+  };
+
+  const handleStatusChange = (status: string) => {
+    dispatch(setFilter({ status }));
+  };
+
+  const handleDateChange = (date: string) => {
+    dispatch(setFilter({ date }));
+  };
+
   const filteredJobs = jobs.filter((job) => {
-    const matchesSearch =
-      job.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.service.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.address.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || job.status === statusFilter;
-
-    let matchesDate = true;
-    if (dateFilter === "today") {
-      matchesDate = job.scheduledDate === "2024-12-28";
-    } else if (dateFilter === "tomorrow") {
-      matchesDate = job.scheduledDate === "2024-12-29";
-    } else if (dateFilter === "past") {
-      matchesDate = job.scheduledDate < "2024-12-28";
-    }
-
-    return matchesSearch && matchesStatus && matchesDate;
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      job.order_number.toLowerCase().includes(query) ||
+      job.customer.name.toLowerCase().includes(query) ||
+      getServiceSummary(job).toLowerCase().includes(query) ||
+      job.address.city.toLowerCase().includes(query)
+    );
   });
 
-  const getStatusColor = (status: string) => {
+  const getServiceSummary = (job: TechnicianJob) => {
+    if (job.items.length === 0) return "No services";
+    if (job.items.length === 1) return job.items[0].sub_service_name;
+    return `${job.items[0].sub_service_name} +${job.items.length - 1} more`;
+  };
+
+  const getStatusColor = (status: TechnicianStatus) => {
     switch (status) {
-      case "in_progress": return "bg-blue-100 text-blue-700";
-      case "assigned": return "bg-yellow-100 text-yellow-700";
-      case "on_the_way": return "bg-orange-100 text-orange-700";
-      case "arrived": return "bg-gray-900 text-white";
-      case "completed": return "bg-green-100 text-green-700";
-      default: return "bg-gray-100 text-gray-600";
+      case "assigned":
+        return "bg-yellow-100 text-yellow-700";
+      case "acknowledged":
+        return "bg-blue-100 text-blue-700";
+      case "on_the_way":
+        return "bg-orange-100 text-orange-700";
+      case "arrived":
+        return "bg-purple-100 text-purple-700";
+      case "in_progress":
+        return "bg-indigo-100 text-indigo-700";
+      case "completed":
+        return "bg-green-100 text-green-700";
+      case "cancelled":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-gray-100 text-gray-600";
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: TechnicianStatus) => {
     switch (status) {
-      case "in_progress": return "In Progress";
-      case "assigned": return "Assigned";
-      case "on_the_way": return "On the Way";
-      case "arrived": return "Arrived";
-      case "completed": return "Completed";
-      default: return status;
+      case "assigned":
+        return "Assigned";
+      case "acknowledged":
+        return "Acknowledged";
+      case "on_the_way":
+        return "On the Way";
+      case "arrived":
+        return "Arrived";
+      case "in_progress":
+        return "In Progress";
+      case "completed":
+        return "Completed";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return status;
     }
   };
 
-  const activeJobs = filteredJobs.filter(j => j.status !== "completed");
-  const completedJobs = filteredJobs.filter(j => j.status === "completed");
+  const openNavigation = (job: TechnicianJob) => {
+    if (job.address.latitude && job.address.longitude) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${job.address.latitude},${job.address.longitude}`;
+      window.open(url, "_blank");
+    }
+  };
+
+  const activeJobs = filteredJobs.filter(
+    (j) => j.technician_status !== "completed" && j.technician_status !== "cancelled"
+  );
+  const completedJobs = filteredJobs.filter((j) => j.technician_status === "completed");
+
+  if (isLoading && jobs.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">My Jobs</h1>
-        <p className="text-sm text-gray-500 mt-1">View and manage your assigned jobs</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">My Jobs</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            View and manage your assigned jobs
+          </p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={isLoading}
+          className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
+
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-500">Today</p>
+            <p className="text-2xl font-semibold text-gray-900">{stats.today_jobs}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-500">Pending Accept</p>
+            <p className="text-2xl font-semibold text-yellow-600">
+              {stats.pending_acknowledge}
+            </p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-500">In Progress</p>
+            <p className="text-2xl font-semibold text-blue-600">{stats.in_progress}</p>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <p className="text-sm text-gray-500">Completed Today</p>
+            <p className="text-2xl font-semibold text-green-600">{stats.completed_today}</p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error.message}</p>
+          <button
+            onClick={() => {
+              dispatch(clearError());
+              handleRefresh();
+            }}
+            className="ml-auto text-sm font-medium text-red-700 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
@@ -183,32 +217,32 @@ export default function JobsPage() {
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
               <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={filter.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
                 className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
               >
-                <option value="all">All Status</option>
-                <option value="assigned">Assigned</option>
-                <option value="on_the_way">On the Way</option>
-                <option value="arrived">Arrived</option>
+                <option value="active">Active</option>
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={filter.date}
+                onChange={(e) => handleDateChange(e.target.value)}
                 className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-              >
-                <option value="all">All Dates</option>
-                <option value="today">Today</option>
-                <option value="tomorrow">Tomorrow</option>
-                <option value="past">Past</option>
-              </select>
+              />
             </div>
           </div>
         )}
@@ -218,7 +252,9 @@ export default function JobsPage() {
       {activeJobs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Active Jobs ({activeJobs.length})</h2>
+            <h2 className="text-lg font-medium text-gray-900">
+              Active Jobs ({activeJobs.length})
+            </h2>
           </div>
           <div className="divide-y divide-gray-200">
             {activeJobs.map((job) => (
@@ -226,28 +262,38 @@ export default function JobsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">{job.customer}</span>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(job.status)}`}>
-                        {getStatusLabel(job.status)}
+                      <span className="text-sm font-medium text-gray-900">
+                        {job.customer.name}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                          job.technician_status
+                        )}`}
+                      >
+                        {getStatusLabel(job.technician_status)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{job.service}</p>
-                    <p className="text-xs text-gray-500 mt-1">Order: {job.orderId}</p>
+                    <p className="text-sm text-gray-600">{getServiceSummary(job)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Order: {job.order_number}
+                    </p>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-sm text-gray-500">
                       <Calendar className="h-4 w-4" />
-                      {job.scheduledDate}
+                      {formatDate(job.scheduled_date)}
                     </div>
                     <div className="flex items-center gap-1 text-sm font-medium text-gray-900 mt-1">
                       <Clock className="h-4 w-4" />
-                      {job.scheduledTime}
+                      {formatTime(job.scheduled_time)}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                   <MapPin className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{job.address}</span>
+                  <span className="truncate">
+                    {job.address.street_address}, {job.address.city}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   <Link
@@ -257,12 +303,16 @@ export default function JobsPage() {
                     <Eye className="h-4 w-4" />
                     View Details
                   </Link>
-                  <button className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                  <button
+                    onClick={() => openNavigation(job)}
+                    disabled={!job.address.latitude || !job.address.longitude}
+                    className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                  >
                     <Navigation className="h-4 w-4" />
                     Navigate
                   </button>
                   <a
-                    href={`tel:${job.phone}`}
+                    href={`tel:${job.customer.phone}`}
                     className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
                   >
                     <Phone className="h-4 w-4" />
@@ -278,7 +328,9 @@ export default function JobsPage() {
       {completedJobs.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-lg">
           <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Completed ({completedJobs.length})</h2>
+            <h2 className="text-lg font-medium text-gray-900">
+              Completed ({completedJobs.length})
+            </h2>
           </div>
           <div className="divide-y divide-gray-200">
             {completedJobs.map((job) => (
@@ -290,21 +342,26 @@ export default function JobsPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">{job.customer}</span>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(job.status)}`}>
-                        {getStatusLabel(job.status)}
+                      <span className="text-sm font-medium text-gray-900">
+                        {job.customer.name}
+                      </span>
+                      <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-700">
+                        <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                        Completed
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{job.service}</p>
+                    <p className="text-sm text-gray-600">{getServiceSummary(job)}</p>
                   </div>
                   <div className="text-right text-sm text-gray-500">
-                    <p>{job.scheduledDate}</p>
-                    <p>{job.scheduledTime}</p>
+                    <p>{formatDate(job.scheduled_date)}</p>
+                    <p>{formatTime(job.scheduled_time)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <MapPin className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{job.address}</span>
+                  <span className="truncate">
+                    {job.address.city}, {job.address.emirate}
+                  </span>
                 </div>
               </Link>
             ))}
@@ -312,36 +369,12 @@ export default function JobsPage() {
         </div>
       )}
 
-      {filteredJobs.length === 0 && (
+      {filteredJobs.length === 0 && !isLoading && (
         <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
           <ClipboardList className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500">No jobs found matching your criteria</p>
         </div>
       )}
     </div>
-  );
-}
-
-function ClipboardList(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-      <path d="M12 11h4" />
-      <path d="M12 16h4" />
-      <path d="M8 11h.01" />
-      <path d="M8 16h.01" />
-    </svg>
   );
 }
