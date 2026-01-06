@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Mail, Phone, User, Edit2, Save, X, AlertCircle, CheckCircle2, Clock } from "lucide-react";
@@ -10,7 +10,8 @@ import { ApiException } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
-export default function TechnicianDetailPage({ params }: { params: { id: string } }) {
+export default function TechnicianDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEditMode = searchParams.get("edit") === "true";
@@ -31,13 +32,15 @@ export default function TechnicianDetailPage({ params }: { params: { id: string 
 
   useEffect(() => {
     loadTechnician();
-  }, [params.id]);
+  }, [id]);
 
   const loadTechnician = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await getTechnician(params.id);
+      console.log('Loading technician with ID:', id);
+      const response = await getTechnician(id);
+      console.log('Technician response:', response);
       setTechnician(response.data);
       setFormData({
         first_name: response.data.first_name,
@@ -46,12 +49,12 @@ export default function TechnicianDetailPage({ params }: { params: { id: string 
         phone: response.data.phone || "",
       });
     } catch (err) {
+      console.error("Error loading technician:", err);
       if (err instanceof ApiException) {
         setError(err.message || "Failed to load technician");
       } else {
         setError("An unexpected error occurred");
       }
-      console.error("Error loading technician:", err);
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +170,7 @@ export default function TechnicianDetailPage({ params }: { params: { id: string 
         </div>
         {!isEditing && (
           <div className="flex gap-2">
-            <Link href={`/vendor/technicians/${params.id}/availability`}>
+            <Link href={`/vendor/technicians/${id}/availability`}>
               <Button variant="outline">
                 <Clock className="h-4 w-4 mr-2" />
                 Availability

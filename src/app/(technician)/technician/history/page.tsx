@@ -1,125 +1,109 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Search,
   Calendar,
   MapPin,
   Clock,
-  Star,
   DollarSign,
-  Filter,
   Download,
   CheckCircle,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
-
-const completedJobs = [
-  {
-    id: "JOB-1233",
-    orderId: "ORD-5677",
-    customer: "Lisa White",
-    service: "Toilet Repair",
-    category: "Plumbing",
-    address: "Apt 2301, Downtown Views, Dubai",
-    completedDate: "2024-12-27",
-    completedTime: "4:30 PM",
-    duration: "1.5 hrs",
-    amount: 180,
-    rating: 5,
-    review: "Excellent service! Very professional and quick.",
-  },
-  {
-    id: "JOB-1232",
-    orderId: "ORD-5676",
-    customer: "Tom Green",
-    service: "Sink Installation",
-    category: "Plumbing",
-    address: "Villa 5, Jumeirah Islands, Dubai",
-    completedDate: "2024-12-27",
-    completedTime: "11:30 AM",
-    duration: "2 hrs",
-    amount: 250,
-    rating: 5,
-    review: "Great job, very clean work.",
-  },
-  {
-    id: "JOB-1231",
-    orderId: "ORD-5675",
-    customer: "Anna Martinez",
-    service: "Water Heater Repair",
-    category: "Plumbing",
-    address: "Villa 18, The Springs, Dubai",
-    completedDate: "2024-12-26",
-    completedTime: "3:00 PM",
-    duration: "2.5 hrs",
-    amount: 350,
-    rating: 4,
-    review: "Good service, arrived on time.",
-  },
-  {
-    id: "JOB-1230",
-    orderId: "ORD-5674",
-    customer: "David Lee",
-    service: "Pipe Replacement",
-    category: "Plumbing",
-    address: "Apt 1804, JLT Cluster C, Dubai",
-    completedDate: "2024-12-26",
-    completedTime: "11:00 AM",
-    duration: "3 hrs",
-    amount: 450,
-    rating: 5,
-    review: null,
-  },
-  {
-    id: "JOB-1229",
-    orderId: "ORD-5673",
-    customer: "Emma Wilson",
-    service: "Faucet Installation",
-    category: "Plumbing",
-    address: "Villa 7, Arabian Ranches 2, Dubai",
-    completedDate: "2024-12-25",
-    completedTime: "2:00 PM",
-    duration: "1 hr",
-    amount: 120,
-    rating: 5,
-    review: "Fast and efficient. Highly recommended!",
-  },
-  {
-    id: "JOB-1228",
-    orderId: "ORD-5672",
-    customer: "James Brown",
-    service: "Drain Cleaning",
-    category: "Plumbing",
-    address: "Apt 502, Marina Quays, Dubai",
-    completedDate: "2024-12-24",
-    completedTime: "4:00 PM",
-    duration: "1.5 hrs",
-    amount: 150,
-    rating: 4,
-    review: "Good job, but arrived 10 minutes late.",
-  },
-];
-
-const stats = {
-  totalJobs: 456,
-  thisMonth: 24,
-  avgRating: 4.8,
-  totalEarnings: 12450,
-};
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchHistoryStats, fetchHistoryJobs } from "@/store/slices/technicianJobSlice";
 
 export default function HistoryPage() {
+  const dispatch = useAppDispatch();
+  const { historyStats, historyJobs, isLoading, error } = useAppSelector(
+    (state) => state.technicianJob
+  );
+
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
-  const [showFilters, setShowFilters] = useState(false);
 
-  const filteredJobs = completedJobs.filter((job) => {
+  useEffect(() => {
+    dispatch(fetchHistoryStats());
+    dispatch(fetchHistoryJobs());
+  }, [dispatch]);
+
+  const handleRefresh = () => {
+    dispatch(fetchHistoryStats());
+    dispatch(fetchHistoryJobs());
+  };
+
+  const filteredJobs = historyJobs.filter((job) => {
     const matchesSearch =
-      job.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.service.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
+      job.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.items.some((item) =>
+        item.service_name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+    if (!matchesSearch) return false;
+
+    if (dateFilter === "all") return true;
+
+    const completedDate = new Date(job.completed_at!);
+    const today = new Date();
+
+    switch (dateFilter) {
+      case "today":
+        return completedDate.toDateString() === today.toDateString();
+      case "week": {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(today.getDate() - 7);
+        return completedDate >= weekAgo;
+      }
+      case "month": {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
+        return completedDate >= monthAgo;
+      }
+      case "quarter": {
+        const quarterAgo = new Date(today);
+        quarterAgo.setMonth(today.getMonth() - 3);
+        return completedDate >= quarterAgo;
+      }
+      default:
+        return true;
+    }
   });
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  if (isLoading && !historyStats && historyJobs.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Job History</h1>
+          <p className="text-sm text-gray-500 mt-1">View your completed jobs</p>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -128,41 +112,61 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Job History</h1>
           <p className="text-sm text-gray-500 mt-1">View your completed jobs</p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-          <Download className="h-4 w-4 mr-2" />
-          Export
+        <button
+          onClick={handleRefresh}
+          disabled={isLoading}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          Refresh
         </button>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+          <p className="text-sm text-red-700">{error.message}</p>
+          <button
+            onClick={handleRefresh}
+            className="ml-auto text-sm font-medium text-red-700 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <CheckCircle className="h-4 w-4 text-green-600" />
             Total Jobs
           </div>
-          <p className="text-2xl font-semibold text-gray-900">{stats.totalJobs}</p>
+          <p className="text-2xl font-semibold text-gray-900">
+            {historyStats?.total_jobs || 0}
+          </p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <Calendar className="h-4 w-4 text-blue-600" />
             This Month
           </div>
-          <p className="text-2xl font-semibold text-gray-900">{stats.thisMonth}</p>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-            <Star className="h-4 w-4 text-yellow-500" />
-            Avg Rating
-          </div>
-          <p className="text-2xl font-semibold text-gray-900">{stats.avgRating}</p>
+          <p className="text-2xl font-semibold text-gray-900">
+            {historyStats?.this_month_jobs || 0}
+          </p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <DollarSign className="h-4 w-4 text-green-600" />
-            Earnings
+            Total Earnings
           </div>
-          <p className="text-2xl font-semibold text-gray-900">AED {stats.totalEarnings.toLocaleString()}</p>
+          <p className="text-2xl font-semibold text-gray-900">
+            AED {historyStats?.total_earnings?.toLocaleString() || 0}
+          </p>
         </div>
       </div>
 
@@ -204,69 +208,64 @@ export default function HistoryPage() {
             <div className="flex items-start justify-between mb-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-gray-900">{job.customer}</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {job.customer.name}
+                  </span>
                   <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
                     Completed
                   </span>
                 </div>
-                <p className="text-sm text-gray-600">{job.service}</p>
-                <p className="text-xs text-gray-500 mt-1">Order: {job.orderId}</p>
+                <p className="text-sm text-gray-600">
+                  {job.items.map((item) => item.service_name).join(", ")}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Order: {job.order_number}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">AED {job.amount}</p>
-                <div className="flex items-center gap-1 justify-end mt-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-3 w-3 ${i < job.rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`}
-                    />
-                  ))}
-                </div>
+                <p className="text-sm font-semibold text-gray-900">
+                  AED {job.total}
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                {job.completedDate}
+                {formatDate(job.completed_at!)}
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                {job.completedTime} ({job.duration})
+                {formatTime(job.completed_at!)}
               </div>
               <div className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
-                <span className="truncate max-w-[200px]">{job.address}</span>
+                <span className="truncate max-w-[200px]">
+                  {job.address.street_address}, {job.address.city}
+                </span>
               </div>
             </div>
-            {job.review && (
-              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 italic">&ldquo;{job.review}&rdquo;</p>
-              </div>
-            )}
           </Link>
         ))}
-        {filteredJobs.length === 0 && (
+        {filteredJobs.length === 0 && !isLoading && (
           <div className="p-12 text-center">
             <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No completed jobs found</p>
+            <p className="text-gray-500">
+              {searchQuery || dateFilter !== "all"
+                ? "No completed jobs found matching your filters"
+                : "No completed jobs yet"}
+            </p>
           </div>
         )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Showing {filteredJobs.length} of {completedJobs.length} jobs
-        </p>
-        <div className="flex gap-2">
-          <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>
-            Previous
-          </button>
-          <button className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-            Next
-          </button>
+      {/* Pagination Info */}
+      {filteredJobs.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Showing {filteredJobs.length} of {historyJobs.length} jobs
+          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }

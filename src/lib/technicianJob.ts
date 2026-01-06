@@ -3,6 +3,7 @@ import {
   TechnicianJobResponse,
   TechnicianJobActionResponse,
   TechnicianJobStatsResponse,
+  TechnicianHistoryStatsResponse,
   TechnicianScheduleResponse,
   TechnicianWorkingHoursResponse,
   TechnicianUnavailableDaysResponse,
@@ -86,6 +87,24 @@ export async function getJobStats(): Promise<TechnicianJobStatsResponse> {
 }
 
 /**
+ * Get job history stats
+ */
+export async function getHistoryStats(): Promise<TechnicianHistoryStatsResponse> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/technician/jobs/history/stats`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<TechnicianHistoryStatsResponse>(response);
+}
+
+/**
  * Get a specific job
  */
 export async function getJob(jobId: string): Promise<TechnicianJobResponse> {
@@ -119,6 +138,25 @@ export async function acknowledgeJob(jobId: string): Promise<TechnicianJobAction
   });
 
   return handleResponse<TechnicianJobActionResponse>(response);
+}
+
+/**
+ * Decline/reject a job
+ */
+export async function declineJob(jobId: string, reason: string): Promise<{ message: string }> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/technician/jobs/${jobId}/decline`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  return handleResponse<{ message: string }>(response);
 }
 
 /**
@@ -381,4 +419,43 @@ export async function cancelDayOff(dayOffId: string): Promise<{ message: string 
   });
 
   return handleResponse<{ message: string }>(response);
+}
+
+// ==================== Availability Endpoints ====================
+
+/**
+ * Get technician availability status
+ */
+export async function getAvailability(): Promise<{ status: string; data: { is_available: boolean } }> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/technician/availability`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse<{ status: string; data: { is_available: boolean } }>(response);
+}
+
+/**
+ * Toggle technician availability status
+ */
+export async function toggleAvailability(isAvailable: boolean): Promise<{ status: string; message: string; data: { is_available: boolean } }> {
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_URL}/technician/availability`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ is_available: isAvailable }),
+  });
+
+  return handleResponse<{ status: string; message: string; data: { is_available: boolean } }>(response);
 }

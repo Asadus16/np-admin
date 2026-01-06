@@ -149,6 +149,43 @@ export default function AvailabilityPage() {
     setSuccess(null);
   };
 
+  // Helper function to ensure time is in HH:mm format (24-hour)
+  const normalizeTimeFormat = (time: string): string => {
+    if (!time) return '';
+
+    // Remove any whitespace
+    time = time.trim();
+
+    // If already in HH:mm format, return as is
+    if (/^\d{2}:\d{2}$/.test(time)) {
+      return time;
+    }
+
+    // Parse various time formats and convert to HH:mm
+    try {
+      // Handle formats like "9:00", "09:00 AM", "5:00 PM", etc.
+      const match = time.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+      if (!match) return time;
+
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2];
+      const meridiem = match[3]?.toLowerCase();
+
+      // Convert to 24-hour format if AM/PM is present
+      if (meridiem === 'pm' && hours !== 12) {
+        hours += 12;
+      } else if (meridiem === 'am' && hours === 12) {
+        hours = 0;
+      }
+
+      // Pad hours with leading zero if needed
+      const paddedHours = hours.toString().padStart(2, '0');
+      return `${paddedHours}:${minutes}`;
+    } catch {
+      return time;
+    }
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
@@ -160,8 +197,8 @@ export default function AvailabilityPage() {
         const daySchedule = schedule[day];
         const slots: CompanyHourSlotInput[] = daySchedule.enabled
           ? daySchedule.slots.map((slot) => ({
-              start_time: slot.start,
-              end_time: slot.end,
+              start_time: normalizeTimeFormat(slot.start),
+              end_time: normalizeTimeFormat(slot.end),
             }))
           : [];
 
@@ -174,7 +211,7 @@ export default function AvailabilityPage() {
 
       await createOrUpdateCompanyHours({ hours });
       setSuccess("Company hours saved successfully");
-      
+
       // Reload to get updated IDs
       await loadCompanyHours();
     } catch (err) {

@@ -32,6 +32,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchJob,
   acknowledgeJob,
+  declineJob,
   markOnTheWay,
   markArrived,
   startJob,
@@ -55,8 +56,10 @@ export default function JobDetailPage() {
 
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [jobNotes, setJobNotes] = useState("");
+  const [declineReason, setDeclineReason] = useState("");
   const [evidenceType, setEvidenceType] = useState<"before" | "after" | "other">("before");
   const [evidenceCaption, setEvidenceCaption] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -166,6 +169,15 @@ export default function JobDetailPage() {
     await dispatch(deleteEvidence({ jobId: job.id, evidenceId }));
   };
 
+  const handleDecline = async () => {
+    if (!job || !declineReason.trim()) return;
+    const result = await dispatch(declineJob({ jobId: job.id, reason: declineReason }));
+    if (declineJob.fulfilled.match(result)) {
+      setShowDeclineModal(false);
+      router.push('/technician/jobs');
+    }
+  };
+
   const openNavigation = () => {
     if (job?.address.latitude && job?.address.longitude) {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${job.address.latitude},${job.address.longitude}`;
@@ -264,18 +276,30 @@ export default function JobDetailPage() {
 
       {/* Main Action Button */}
       {nextAction && job.technician_status !== "completed" && job.technician_status !== "cancelled" && (
-        <button
-          onClick={handleAction}
-          disabled={isSubmitting}
-          className={`w-full flex items-center justify-center gap-3 px-6 py-4 text-lg font-medium text-white rounded-lg disabled:opacity-50 ${nextAction.color}`}
-        >
-          {isSubmitting ? (
-            <Loader2 className="h-6 w-6 animate-spin" />
-          ) : (
-            <nextAction.icon className="h-6 w-6" />
+        <div className={job.technician_status === "assigned" ? "grid grid-cols-2 gap-4" : ""}>
+          <button
+            onClick={handleAction}
+            disabled={isSubmitting}
+            className={`${job.technician_status === "assigned" ? "" : "w-full"} flex items-center justify-center gap-3 px-6 py-4 text-lg font-medium text-white rounded-lg disabled:opacity-50 ${nextAction.color}`}
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              <nextAction.icon className="h-6 w-6" />
+            )}
+            {nextAction.label}
+          </button>
+          {job.technician_status === "assigned" && (
+            <button
+              onClick={() => setShowDeclineModal(true)}
+              disabled={isSubmitting}
+              className="flex items-center justify-center gap-3 px-6 py-4 text-lg font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50"
+            >
+              <X className="h-6 w-6" />
+              Decline Job
+            </button>
           )}
-          {nextAction.label}
-        </button>
+        </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -684,6 +708,52 @@ export default function JobDetailPage() {
                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Mark Complete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeclineModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Decline Job</h3>
+              <button onClick={() => setShowDeclineModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Please provide a reason for declining this job:
+            </p>
+            <select
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 mb-4 text-sm"
+            >
+              <option value="">Select reason...</option>
+              <option value="Too far from my location">Too far from my location</option>
+              <option value="Not available at scheduled time">Not available at scheduled time</option>
+              <option value="Outside my expertise">Outside my expertise</option>
+              <option value="Already overloaded with jobs">Already overloaded with jobs</option>
+              <option value="Other">Other reason</option>
+            </select>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setDeclineReason("");
+                }}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDecline}
+                disabled={!declineReason || isSubmitting}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Decline Job"}
               </button>
             </div>
           </div>

@@ -108,6 +108,12 @@ export interface TechnicianJobStats {
   completed_this_month: number;
 }
 
+export interface TechnicianHistoryStats {
+  total_jobs: number;
+  this_month_jobs: number;
+  total_earnings: number;
+}
+
 export interface TechnicianWorkingHour {
   day_of_week: number;
   day_name: string;
@@ -144,6 +150,11 @@ export interface TechnicianJobActionResponse {
 
 export interface TechnicianJobStatsResponse {
   data: TechnicianJobStats;
+}
+
+export interface TechnicianHistoryStatsResponse {
+  status: string;
+  data: TechnicianHistoryStats;
 }
 
 export interface TechnicianScheduleResponse {
