@@ -23,7 +23,7 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  // Fetch notifications on mount and periodically
+  // Fetch notifications on mount
   useEffect(() => {
     if (!user) {
       // Clear notifications if user logs out
@@ -34,17 +34,6 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
 
     loadNotifications();
     loadUnreadCount();
-
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(() => {
-      // Check if user still exists before polling
-      const token = localStorage.getItem("np_admin_token");
-      if (token) {
-        loadUnreadCount();
-      }
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, [user]);
 
   const loadNotifications = async () => {
