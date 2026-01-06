@@ -1,114 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ShoppingCart,
   Search,
-  Filter,
   Clock,
   CheckCircle,
   XCircle,
   Truck,
   Plus,
   ChevronRight,
+  Loader2,
+  AlertCircle,
+  FileCheck,
+  ChevronLeft,
 } from "lucide-react";
+import { getOrders } from "@/lib/order";
+import { Order } from "@/types/order";
 
-// Static orders data
-const ordersData = [
-  {
-    id: "ORD-2024-001",
-    vendor: "Quick Fix Plumbing",
-    vendorLogo: "QF",
-    service: "Pipe Repair & Maintenance",
-    date: "Dec 28, 2024",
-    time: "2:00 PM",
-    amount: 350,
-    status: "completed",
-    pointsEarned: 35,
-  },
-  {
-    id: "ORD-2024-002",
-    vendor: "Spark Electric Co",
-    vendorLogo: "SE",
-    service: "Electrical Inspection",
-    date: "Dec 27, 2024",
-    time: "10:00 AM",
-    amount: 200,
-    status: "in_progress",
-    pointsEarned: 0,
-  },
-  {
-    id: "ORD-2024-003",
-    vendor: "Cool Air HVAC",
-    vendorLogo: "CA",
-    service: "AC Maintenance & Filter Replacement",
-    date: "Dec 25, 2024",
-    time: "9:00 AM",
-    amount: 450,
-    status: "completed",
-    pointsEarned: 45,
-  },
-  {
-    id: "ORD-2024-004",
-    vendor: "Green Clean Services",
-    vendorLogo: "GC",
-    service: "Deep Home Cleaning",
-    date: "Dec 22, 2024",
-    time: "8:00 AM",
-    amount: 280,
-    status: "completed",
-    pointsEarned: 28,
-  },
-  {
-    id: "ORD-2024-005",
-    vendor: "Quick Fix Plumbing",
-    vendorLogo: "QF",
-    service: "Water Heater Installation",
-    date: "Dec 20, 2024",
-    time: "11:00 AM",
-    amount: 650,
-    status: "completed",
-    pointsEarned: 65,
-  },
-  {
-    id: "ORD-2024-006",
-    vendor: "Pest Control Pro",
-    vendorLogo: "PC",
-    service: "General Pest Treatment",
-    date: "Dec 18, 2024",
-    time: "3:00 PM",
-    amount: 180,
-    status: "cancelled",
-    pointsEarned: 0,
-  },
-  {
-    id: "ORD-2024-007",
-    vendor: "Green Clean Services",
-    vendorLogo: "GC",
-    service: "Move-out Cleaning",
-    date: "Dec 15, 2024",
-    time: "9:00 AM",
-    amount: 400,
-    status: "completed",
-    pointsEarned: 40,
-  },
-  {
-    id: "ORD-2024-008",
-    vendor: "Spark Electric Co",
-    vendorLogo: "SE",
-    service: "Light Fixture Installation",
-    date: "Dec 12, 2024",
-    time: "2:00 PM",
-    amount: 175,
-    status: "completed",
-    pointsEarned: 18,
-  },
-];
+type StatusFilter = "all" | "active" | "completed" | "cancelled";
 
 export default function OrderHistoryPage() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "completed" | "cancelled">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-AE", {
@@ -118,6 +39,67 @@ export default function OrderHistoryPage() {
       maximumFractionDigits: 0,
     }).format(value);
   };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-AE", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Map filter to API status
+      let apiStatus: string | undefined;
+      if (statusFilter === "completed") {
+        apiStatus = "completed";
+      } else if (statusFilter === "cancelled") {
+        apiStatus = "cancelled";
+      } else if (statusFilter === "active") {
+        // Active includes pending, confirmed, in_progress
+        // We'll filter client-side for this
+        apiStatus = undefined;
+      }
+
+      const response = await getOrders({
+        page: currentPage,
+        per_page: 10,
+        status: apiStatus,
+        sort: "latest",
+      });
+
+      let filteredOrders = response.data;
+
+      // Client-side filter for "active" since it includes multiple statuses
+      if (statusFilter === "active") {
+        filteredOrders = filteredOrders.filter(
+          (o) => o.status === "pending" || o.status === "confirmed" || o.status === "in_progress"
+        );
+      }
+
+      setOrders(filteredOrders);
+      setTotalPages(response.meta.last_page);
+      setTotal(response.meta.total);
+    } catch (err) {
+      setError("Failed to load orders");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, statusFilter]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -135,11 +117,18 @@ export default function OrderHistoryPage() {
             In Progress
           </span>
         );
-      case "scheduled":
+      case "confirmed":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+            <FileCheck className="h-3 w-3 mr-1" />
+            Confirmed
+          </span>
+        );
+      case "pending":
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <Clock className="h-3 w-3 mr-1" />
-            Scheduled
+            Pending
           </span>
         );
       case "cancelled":
@@ -158,25 +147,44 @@ export default function OrderHistoryPage() {
     }
   };
 
-  const filteredOrders = ordersData.filter((order) => {
-    const matchesSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.service.toLowerCase().includes(searchQuery.toLowerCase());
+  const getVendorInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  };
 
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && (order.status === "in_progress" || order.status === "scheduled")) ||
-      statusFilter === order.status;
+  const getServiceSummary = (order: Order) => {
+    if (order.items.length === 0) return "No services";
+    if (order.items.length === 1) return order.items[0].sub_service_name;
+    return `${order.items[0].sub_service_name} +${order.items.length - 1} more`;
+  };
 
-    return matchesSearch && matchesStatus;
+  // Client-side search filter
+  const filteredOrders = orders.filter((order) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      order.order_number.toLowerCase().includes(query) ||
+      order.vendor.name.toLowerCase().includes(query) ||
+      order.items.some(
+        (item) =>
+          item.service_name.toLowerCase().includes(query) ||
+          item.sub_service_name.toLowerCase().includes(query)
+      )
+    );
   });
 
+  // Calculate stats from current orders
   const stats = {
-    total: ordersData.length,
-    active: ordersData.filter((o) => o.status === "in_progress" || o.status === "scheduled").length,
-    completed: ordersData.filter((o) => o.status === "completed").length,
-    cancelled: ordersData.filter((o) => o.status === "cancelled").length,
+    total: total,
+    active: orders.filter(
+      (o) => o.status === "pending" || o.status === "confirmed" || o.status === "in_progress"
+    ).length,
+    completed: orders.filter((o) => o.status === "completed").length,
+    cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
 
   return (
@@ -228,7 +236,7 @@ export default function OrderHistoryPage() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {(["all", "active", "completed", "cancelled"] as const).map((status) => (
             <button
               key={status}
@@ -245,12 +253,38 @@ export default function OrderHistoryPage() {
         </div>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={loadOrders}
+            className="ml-auto text-sm font-medium text-red-700 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Orders List */}
       <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
-        {filteredOrders.length === 0 ? (
+        {loading ? (
+          <div className="p-8 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div className="p-8 text-center">
             <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No orders found</p>
+            {statusFilter !== "all" && (
+              <button
+                onClick={() => setStatusFilter("all")}
+                className="mt-2 text-sm font-medium text-gray-900 hover:underline"
+              >
+                View all orders
+              </button>
+            )}
           </div>
         ) : (
           filteredOrders.map((order) => (
@@ -260,32 +294,67 @@ export default function OrderHistoryPage() {
               className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-600">{order.vendorLogo}</span>
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-medium text-gray-600">
+                    {getVendorInitials(order.vendor.name)}
+                  </span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-900">{order.id}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900">{order.order_number}</p>
                     {getStatusBadge(order.status)}
                   </div>
-                  <p className="text-sm text-gray-600">{order.vendor}</p>
-                  <p className="text-xs text-gray-500">{order.service}</p>
+                  <p className="text-sm text-gray-600 truncate">{order.vendor.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{getServiceSummary(order)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{formatCurrency(order.amount)}</p>
-                  <p className="text-xs text-gray-500">{order.date}</p>
-                  {order.pointsEarned > 0 && (
-                    <p className="text-xs text-gray-500">+{order.pointsEarned} pts</p>
-                  )}
+                  <p className="text-sm font-medium text-gray-900">{formatCurrency(order.total)}</p>
+                  <p className="text-xs text-gray-500">{formatDate(order.scheduled_date)}</p>
+                  <p className="text-xs text-gray-500">{order.scheduled_time}</p>
                 </div>
-                <ChevronRight className="h-5 w-5 text-gray-400" />
+                <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
               </div>
             </Link>
           ))
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            Page {currentPage} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                currentPage === 1
+                  ? "text-gray-400 bg-gray-100 cursor-not-allowed"
+                  : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </button>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg ${
+                currentPage === totalPages
+                  ? "text-gray-400 bg-gray-100 cursor-not-allowed"
+                  : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
