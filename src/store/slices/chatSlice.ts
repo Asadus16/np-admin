@@ -75,9 +75,9 @@ export const sendMessage = createAsyncThunk(
     // Get current state to access user and token
     const state = getState() as { auth: { user: ChatUser | null; token: string | null } };
     const { user, token } = state.auth;
-    
+
     if (!user) throw new Error('User not authenticated');
-    
+
     // Create optimistic message with correct sender info
     const optimisticMessage: Message = {
       id: `optimistic-${Date.now()}-${Math.random()}`,
@@ -89,14 +89,14 @@ export const sendMessage = createAsyncThunk(
       read_at: null,
       sender: user,
     };
-    
+
     // Add optimistic message immediately with correct sender info
     dispatch(addOptimisticMessage({ conversationId, message: optimisticMessage }));
-    
+
     // Import socket utilities
     const { sendSocketMessage, getSocket } = await import('@/lib/socket');
     const socket = getSocket();
-    
+
     // Emit message via socket immediately for instant delivery
     if (socket && socket.connected && user) {
       sendSocketMessage(
@@ -107,7 +107,7 @@ export const sendMessage = createAsyncThunk(
         user.email // Include sender email for proper message alignment
       );
     }
-    
+
     // Also send via API for persistence
     const response = await apiSendMessage(conversationId, payload);
     return response.data;

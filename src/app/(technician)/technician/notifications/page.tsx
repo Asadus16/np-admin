@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -9,91 +9,79 @@ import {
   AlertCircle,
   Calendar,
   MessageSquare,
-  Settings,
+  Loader2,
 } from "lucide-react";
-
-const notifications = [
-  {
-    id: 1,
-    type: "job_assigned",
-    title: "New Job Assigned",
-    message: "You have been assigned a new job: Pipe Leak Repair at Villa 24, Palm Jumeirah",
-    jobId: "JOB-1234",
-    time: "10 minutes ago",
-    read: false,
-  },
-  {
-    id: 2,
-    type: "job_reminder",
-    title: "Upcoming Job Reminder",
-    message: "Your job at Apt 1502, Marina Heights is scheduled for 2:00 PM today",
-    jobId: "JOB-1235",
-    time: "1 hour ago",
-    read: false,
-  },
-  {
-    id: 3,
-    type: "message",
-    title: "New Message",
-    message: "John Smith sent you a message about job JOB-1234",
-    time: "2 hours ago",
-    read: true,
-  },
-  {
-    id: 4,
-    type: "schedule_change",
-    title: "Schedule Updated",
-    message: "Job JOB-1236 has been rescheduled to 4:30 PM",
-    jobId: "JOB-1236",
-    time: "3 hours ago",
-    read: true,
-  },
-  {
-    id: 5,
-    type: "job_completed",
-    title: "Job Completed",
-    message: "Great job! You completed the service for Lisa White. +AED 150 earned.",
-    time: "Yesterday",
-    read: true,
-  },
-  {
-    id: 6,
-    type: "request_approved",
-    title: "Time Off Approved",
-    message: "Your time off request for January 5th has been approved",
-    time: "Dec 26",
-    read: true,
-  },
-  {
-    id: 7,
-    type: "rating",
-    title: "New Rating Received",
-    message: "You received a 5-star rating from Mike Brown for excellent service",
-    time: "Dec 25",
-    read: true,
-  },
-];
+import { getAllNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/lib/notification";
+import type { Notification } from "@/types/notification";
 
 export default function NotificationsPage() {
   const [filter, setFilter] = useState("all");
-  const [notificationList, setNotificationList] = useState(notifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  const filteredNotifications = notificationList.filter((notif) => {
-    if (filter === "unread") return !notif.read;
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getAllNotifications(50);
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredNotifications = notifications.filter((notif) => {
+    if (filter === "unread") return !notif.is_read;
     return true;
   });
 
-  const markAsRead = (id: number) => {
-    setNotificationList((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markAsRead = async (notification: Notification) => {
+    if (notification.is_read) return;
+
+    try {
+      await markNotificationAsRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
+      );
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotificationList((prev) => prev.map((n) => ({ ...n, read: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      setIsMarkingAll(true);
+      await markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    } finally {
+      setIsMarkingAll(false);
+    }
   };
 
-  const unreadCount = notificationList.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
+  };
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -121,6 +109,14 @@ export default function NotificationsPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -133,9 +129,11 @@ export default function NotificationsPage() {
         <div className="flex gap-2">
           {unreadCount > 0 && (
             <button
-              onClick={markAllAsRead}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              onClick={handleMarkAllAsRead}
+              disabled={isMarkingAll}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
+              {isMarkingAll && <Loader2 className="h-4 w-4 animate-spin" />}
               Mark all as read
             </button>
           )}
@@ -171,9 +169,9 @@ export default function NotificationsPage() {
         {filteredNotifications.map((notification) => (
           <div
             key={notification.id}
-            onClick={() => markAsRead(notification.id)}
+            onClick={() => markAsRead(notification)}
             className={`p-4 flex items-start gap-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-              !notification.read ? "bg-blue-50/50" : ""
+              !notification.is_read ? "bg-blue-50/50" : ""
             }`}
           >
             <div className={`p-2 rounded-lg ${getIconBg(notification.type)}`}>
@@ -181,19 +179,19 @@ export default function NotificationsPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className={`text-sm ${!notification.read ? "font-semibold" : "font-medium"} text-gray-900`}>
+                <p className={`text-sm ${!notification.is_read ? "font-semibold" : "font-medium"} text-gray-900`}>
                   {notification.title}
                 </p>
-                {!notification.read && (
+                {!notification.is_read && (
                   <span className="w-2 h-2 bg-blue-600 rounded-full" />
                 )}
               </div>
               <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-              <p className="text-xs text-gray-500 mt-2">{notification.time}</p>
+              <p className="text-xs text-gray-500 mt-2">{formatNotificationTime(notification.created_at)}</p>
             </div>
-            {notification.jobId && (
+            {notification.data?.job_id && (
               <Link
-                href={`/technician/jobs/${notification.jobId}`}
+                href={`/technician/jobs/${notification.data.job_id}`}
                 onClick={(e) => e.stopPropagation()}
                 className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
               >

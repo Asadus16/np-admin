@@ -28,10 +28,16 @@ import {
 } from "lucide-react";
 import { getOrder, cancelOrder } from "@/lib/order";
 import { Order } from "@/types/order";
+import { useAppDispatch } from "@/store/hooks";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
+import { ReviewModal } from "@/components/reviews/ReviewModal";
+import { canReviewOrder, createReview, getOrderReviews } from "@/lib/review";
+import { ReviewType, Review } from "@/types/review";
 
 export default function OrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -41,13 +47,47 @@ export default function OrderDetailsPage() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewComment, setReviewComment] = useState("");
+  // Review state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [currentReviewType, setCurrentReviewType] = useState<ReviewType | null>(null);
+  const [availableReviewTypes, setAvailableReviewTypes] = useState<ReviewType[]>([]);
+  const [existingReviews, setExistingReviews] = useState<Review[]>([]);
+  const [hasCheckedReview, setHasCheckedReview] = useState(false);
 
   useEffect(() => {
     loadOrder();
   }, [orderId]);
+
+  // Check if user can review and load existing reviews when order is loaded
+  useEffect(() => {
+    const checkReviewStatus = async () => {
+      if (!order || order.status !== "completed" || hasCheckedReview) return;
+
+      try {
+        // Check what review types are available
+        const canReview = await canReviewOrder(orderId);
+        setAvailableReviewTypes(canReview.available_types);
+
+        // Load existing reviews for this order
+        const reviews = await getOrderReviews(orderId);
+        setExistingReviews(reviews);
+
+        // Auto-show review modal if there are available review types and user hasn't seen it yet
+        const reviewShownKey = `review_shown_${orderId}`;
+        if (canReview.available_types.length > 0 && !sessionStorage.getItem(reviewShownKey)) {
+          sessionStorage.setItem(reviewShownKey, "true");
+          setCurrentReviewType(canReview.available_types[0]);
+          setShowReviewModal(true);
+        }
+
+        setHasCheckedReview(true);
+      } catch (err) {
+        console.error("Failed to check review status:", err);
+      }
+    };
+
+    checkReviewStatus();
+  }, [order, orderId, hasCheckedReview]);
 
   const loadOrder = async () => {
     setLoading(true);
@@ -75,6 +115,30 @@ export default function OrderDetailsPage() {
       setError(errorMessage);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleChatWithVendor = async () => {
+    if (!order?.vendor?.user_id) return;
+    try {
+      // Start or get conversation with primary vendor
+      await dispatch(startOrGetConversation(order.vendor.user_id.toString())).unwrap();
+      // Navigate to messages page
+      router.push("/customer/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
+    }
+  };
+
+  const handleChatWithTechnician = async () => {
+    if (!order?.technician?.id) return;
+    try {
+      // Start or get conversation with technician
+      await dispatch(startOrGetConversation(order.technician.id.toString())).unwrap();
+      // Navigate to messages page
+      router.push("/customer/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
     }
   };
 
@@ -280,6 +344,54 @@ export default function OrderDetailsPage() {
     return order.status === "pending" || order.status === "confirmed";
   };
 
+  const handleSubmitReview = async (rating: number, comment: string) => {
+    if (!currentReviewType || !order) return;
+
+    await createReview({
+      order_id: orderId,
+      type: currentReviewType,
+      rating,
+      comment: comment || undefined,
+    });
+
+    // Refresh review status
+    const canReview = await canReviewOrder(orderId);
+    setAvailableReviewTypes(canReview.available_types);
+
+    const reviews = await getOrderReviews(orderId);
+    setExistingReviews(reviews);
+
+    setShowReviewModal(false);
+    setCurrentReviewType(null);
+  };
+
+  const openReviewModal = (type: ReviewType) => {
+    setCurrentReviewType(type);
+    setShowReviewModal(true);
+  };
+
+  const getReviewTypeLabel = (type: ReviewType): string => {
+    switch (type) {
+      case "customer_to_vendor":
+        return "Rate Service";
+      case "customer_to_technician":
+        return "Rate Technician";
+      default:
+        return "Leave Review";
+    }
+  };
+
+  const getRecipientName = (): string => {
+    if (!order || !currentReviewType) return "";
+    if (currentReviewType === "customer_to_vendor") {
+      return order.vendor.name;
+    }
+    if (currentReviewType === "customer_to_technician" && order.technician) {
+      return order.technician.name;
+    }
+    return "";
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -469,63 +581,61 @@ export default function OrderDetailsPage() {
           {order.status === "completed" && (
             <div className="bg-white border border-gray-200 rounded-lg">
               <div className="p-4 border-b border-gray-200">
-                <h2 className="font-semibold text-gray-900">Leave a Review</h2>
+                <h2 className="font-semibold text-gray-900">Reviews</h2>
               </div>
-              {showReviewForm ? (
-                <div className="p-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Rating</p>
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          onClick={() => setReviewRating(star)}
-                          className="p-1"
-                        >
-                          <Star
-                            className={`h-6 w-6 ${
-                              star <= reviewRating
-                                ? "text-amber-500 fill-current"
-                                : "text-gray-300"
-                            }`}
-                          />
-                        </button>
-                      ))}
-                    </div>
+              <div className="p-4 space-y-4">
+                {/* Existing Reviews */}
+                {existingReviews.length > 0 && (
+                  <div className="space-y-3">
+                    {existingReviews.map((review) => (
+                      <div key={review.id} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-4 w-4 ${
+                                  star <= review.rating
+                                    ? "text-yellow-400 fill-yellow-400"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {review.type === "customer_to_vendor" && "Service Review"}
+                            {review.type === "customer_to_technician" && "Technician Review"}
+                          </span>
+                        </div>
+                        {review.comment && (
+                          <p className="text-sm text-gray-600">{review.comment}</p>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Comment</p>
-                    <textarea
-                      value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
-                      placeholder="Share your experience..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      rows={3}
-                    />
+                )}
+
+                {/* Review Buttons */}
+                {availableReviewTypes.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {availableReviewTypes.map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => openReviewModal(type)}
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        <Star className="h-4 w-4 mr-2" />
+                        {getReviewTypeLabel(type)}
+                      </button>
+                    ))}
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowReviewForm(false)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800">
-                      Submit Review
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4">
-                  <button
-                    onClick={() => setShowReviewForm(true)}
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    <Star className="h-4 w-4 mr-2" />
-                    Write a Review
-                  </button>
-                </div>
-              )}
+                )}
+
+                {/* No reviews and can't add more */}
+                {existingReviews.length === 0 && availableReviewTypes.length === 0 && (
+                  <p className="text-sm text-gray-500">No reviews yet.</p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -613,10 +723,22 @@ export default function OrderDetailsPage() {
 
           {/* Actions */}
           <div className="space-y-2">
-            <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button
+              onClick={handleChatWithVendor}
+              className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
               <MessageSquare className="h-4 w-4 mr-2" />
               Chat with Vendor
             </button>
+            {order.technician && (
+              <button
+                onClick={handleChatWithTechnician}
+                className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Chat with Technician
+              </button>
+            )}
             {canCancel() && (
               <button
                 onClick={() => setShowCancelModal(true)}
@@ -681,6 +803,21 @@ export default function OrderDetailsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Review Modal */}
+      {currentReviewType && (
+        <ReviewModal
+          isOpen={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setCurrentReviewType(null);
+          }}
+          onSubmit={handleSubmitReview}
+          type={currentReviewType}
+          recipientName={getRecipientName()}
+          orderNumber={order?.order_number}
+        />
       )}
     </div>
   );

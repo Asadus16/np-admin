@@ -1,38 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Check, Trash2, Filter } from "lucide-react";
-
-const notifications = [
-  { id: 1, title: "New vendor application", message: "John's Electric has submitted a new vendor application", type: "info", time: "5 minutes ago", read: false },
-  { id: 2, title: "Payout completed", message: "Payout run PR-2024-001 has been completed successfully", type: "success", time: "1 hour ago", read: false },
-  { id: 3, title: "Low balance alert", message: "Platform wallet balance is below the threshold", type: "warning", time: "2 hours ago", read: true },
-  { id: 4, title: "New review", message: "Mike's Plumbing received a 5-star review from Alice Wilson", type: "info", time: "3 hours ago", read: true },
-  { id: 5, title: "Vendor suspended", message: "ProPaint Services has been automatically suspended due to policy violation", type: "error", time: "5 hours ago", read: true },
-  { id: 6, title: "Feature flag enabled", message: "The 'ai_recommendations' feature has been enabled in staging", type: "info", time: "Yesterday", read: true },
-  { id: 7, title: "System update", message: "Platform will undergo scheduled maintenance on March 25th", type: "warning", time: "Yesterday", read: true },
-];
+import { useState, useEffect } from "react";
+import { Bell, Check, Trash2, Filter, Loader2 } from "lucide-react";
+import { getAllNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/lib/notification";
+import type { Notification } from "@/types/notification";
 
 export default function NotificationsPage() {
-  const [items, setItems] = useState(notifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  const filteredNotifications = items.filter((item) => {
-    if (filter === "unread") return !item.read;
-    if (filter === "read") return item.read;
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getAllNotifications(50);
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredNotifications = notifications.filter((item) => {
+    if (filter === "unread") return !item.is_read;
+    if (filter === "read") return item.is_read;
     return true;
   });
 
-  const markAsRead = (id: number) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, read: true } : item)));
+  const markAsRead = async (notification: Notification) => {
+    if (notification.is_read) return;
+
+    try {
+      await markNotificationAsRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
+      );
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setItems(items.map((item) => ({ ...item, read: true })));
-  };
-
-  const deleteNotification = (id: number) => {
-    setItems(items.filter((item) => item.id !== id));
+  const handleMarkAllAsRead = async () => {
+    try {
+      setIsMarkingAll(true);
+      await markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    } finally {
+      setIsMarkingAll(false);
+    }
   };
 
   const getTypeStyles = (type: string) => {
@@ -48,7 +71,30 @@ export default function NotificationsPage() {
     }
   };
 
-  const unreadCount = items.filter((item) => !item.read).length;
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -59,13 +105,20 @@ export default function NotificationsPage() {
             {unreadCount > 0 ? `${unreadCount} unread notifications` : "All caught up!"}
           </p>
         </div>
-        <button
-          onClick={markAllAsRead}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          <Check className="h-4 w-4 mr-2" />
-          Mark all as read
-        </button>
+        {unreadCount > 0 && (
+          <button
+            onClick={handleMarkAllAsRead}
+            disabled={isMarkingAll}
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isMarkingAll ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
+            Mark all as read
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -92,7 +145,7 @@ export default function NotificationsPage() {
           <div
             key={notification.id}
             className={`bg-white border rounded-lg p-4 ${
-              !notification.read ? "border-l-4 border-l-blue-500" : "border-gray-200"
+              !notification.is_read ? "border-l-4 border-l-blue-500" : "border-gray-200"
             }`}
           >
             <div className="flex items-start justify-between gap-4">
@@ -101,30 +154,23 @@ export default function NotificationsPage() {
                   <Bell className="h-4 w-4 text-gray-600" />
                 </div>
                 <div>
-                  <h3 className={`text-sm ${notification.read ? "text-gray-700" : "font-medium text-gray-900"}`}>
+                  <h3 className={`text-sm ${notification.is_read ? "text-gray-700" : "font-medium text-gray-900"}`}>
                     {notification.title}
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">{notification.message}</p>
-                  <p className="text-xs text-gray-400 mt-2">{notification.time}</p>
+                  <p className="text-xs text-gray-400 mt-2">{formatNotificationTime(notification.created_at)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                {!notification.read && (
+                {!notification.is_read && (
                   <button
-                    onClick={() => markAsRead(notification.id)}
+                    onClick={() => markAsRead(notification)}
                     className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
                     title="Mark as read"
                   >
                     <Check className="h-4 w-4" />
                   </button>
                 )}
-                <button
-                  onClick={() => deleteNotification(notification.id)}
-                  className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-red-600"
-                  title="Delete"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
             </div>
           </div>

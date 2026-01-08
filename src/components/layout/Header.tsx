@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PanelLeft, LogOut, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationSocket } from "@/hooks/useNotificationSocket";
 import { getPrimaryRole, hasRole, getUserFullName } from "@/types/auth";
 import { getUnreadNotifications, getUnreadCount, markNotificationAsRead } from "@/lib/notification";
-import { Notification } from "@/types/notification";
+import type { Notification } from "@/types/notification";
+import type { SocketNotification } from "@/lib/socket";
 
 interface HeaderProps {
   isCollapsed: boolean;
@@ -20,21 +22,56 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
 
-  // Fetch notifications on mount
+  // Handle incoming socket notification - this callback is passed to the hook
+  // The hook stores it in a ref, so it doesn't need to be stable
+  const handleSocketNotification = useCallback((data: SocketNotification) => {
+    console.log('[Header] Received notification:', data);
+    const newNotification: Notification = {
+      id: data.id,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      priority: data.priority as any,
+      data: data.data,
+      is_read: false,
+      read_at: data.read_at,
+      created_at: data.created_at,
+    };
+
+    setNotifications(prev => [newNotification, ...prev].slice(0, 10));
+    setUnreadCount(prev => prev + 1);
+
+    // Show browser notification if permission granted
+    if (typeof Notification !== "undefined" && window.Notification?.permission === "granted") {
+      new window.Notification(data.title, { body: data.message, icon: "/logo.png" });
+    }
+  }, []);
+
+  // Use the notification socket hook - handles all socket connection and listener management
+  useNotificationSocket(handleSocketNotification);
+
+  // Load initial notifications when user is available
   useEffect(() => {
-    if (!user) {
-      // Clear notifications if user logs out
-      setNotifications([]);
-      setUnreadCount(0);
+    if (isAuthLoading || !user) {
+      if (!user) {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
       return;
     }
 
+    // Load initial notifications from API
     loadNotifications();
     loadUnreadCount();
-  }, [user]);
+
+    // Request browser notification permission
+    if (typeof Notification !== "undefined" && window.Notification?.permission === "default") {
+      window.Notification.requestPermission();
+    }
+  }, [user, isAuthLoading]);
 
   const loadNotifications = async () => {
     try {

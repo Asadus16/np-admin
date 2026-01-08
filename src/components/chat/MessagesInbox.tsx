@@ -10,7 +10,7 @@ import {
   fetchUnreadCount,
   startOrGetConversation,
 } from "@/store/slices/chatSlice";
-import type { Conversation, Message } from "@/types/chat";
+import type { Conversation, Message, ChatUser } from "@/types/chat";
 import { useSocket } from "@/hooks/useSocket";
 import { formatConversationTime, formatMessageTime } from "@/lib/timeFormat";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
@@ -172,14 +172,28 @@ export default function MessagesInbox({
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
+  const getDisplayName = (user: ChatUser) => {
+    // Use 'name' field if available (company name for vendors), otherwise use first + last name
+    return user.name || `${user.first_name} ${user.last_name}`;
+  };
+
+  const getInitialsFromUser = (user: ChatUser) => {
+    // If we have a custom name (company name), use first two letters
+    if (user.name && user.name !== `${user.first_name} ${user.last_name}`) {
+      return user.name.substring(0, 2).toUpperCase();
+    }
+    // Otherwise use first letter of first and last name
+    return getInitials(user.first_name, user.last_name);
+  };
+
   const isOwnMessage = (message: Message) => {
     return message.sender.email === user?.email;
   };
 
   const filteredConversations = conversations.filter((conv) => {
     const otherUser = getOtherUser(conv);
-    const fullName = `${otherUser.first_name} ${otherUser.last_name}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
+    const displayName = getDisplayName(otherUser).toLowerCase();
+    return displayName.includes(searchQuery.toLowerCase());
   });
 
   const handleNewConversation = async (userId: string) => {
@@ -260,13 +274,13 @@ export default function MessagesInbox({
                   >
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-white font-medium text-sm">
-                        {getInitials(otherUser.first_name, otherUser.last_name)}
+                        {getInitialsFromUser(otherUser)}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900">
-                          {otherUser.first_name} {otherUser.last_name}
+                          {getDisplayName(otherUser)}
                         </span>
                         <span className="text-xs text-gray-500">
                           {conv.latest_message &&
@@ -295,16 +309,12 @@ export default function MessagesInbox({
               <div className="p-4 border-b border-gray-200 flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-blue-500 rounded-full flex items-center justify-center">
                   <span className="text-white font-medium text-sm">
-                    {getInitials(
-                      getOtherUser(currentConversation).first_name,
-                      getOtherUser(currentConversation).last_name
-                    )}
+                    {getInitialsFromUser(getOtherUser(currentConversation))}
                   </span>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {getOtherUser(currentConversation).first_name}{" "}
-                    {getOtherUser(currentConversation).last_name}
+                    {getDisplayName(getOtherUser(currentConversation))}
                   </p>
                   <p className="text-xs text-gray-500">
                     {getOtherUser(currentConversation).roles?.[0]?.name || "User"}

@@ -1,8 +1,11 @@
+export type NotificationPriority = 'critical' | 'high' | 'medium' | 'low';
+
 export interface Notification {
   id: string;
   type: string;
   title: string;
   message: string;
+  priority?: NotificationPriority;
   data: Record<string, any> | null;
   is_read: boolean;
   created_at: string;
