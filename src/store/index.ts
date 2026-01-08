@@ -9,6 +9,7 @@ import chatReducer from './slices/chatSlice';
 import notificationReducer from './slices/notificationSlice';
 import technicianAssignmentReducer from './slices/technicianAssignmentSlice';
 import technicianJobReducer from './slices/technicianJobSlice';
+import pointsReducer from './slices/pointsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -22,6 +23,7 @@ export const store = configureStore({
     notification: notificationReducer,
     technicianAssignment: technicianAssignmentReducer,
     technicianJob: technicianJobReducer,
+    points: pointsReducer,
   },
 });
 

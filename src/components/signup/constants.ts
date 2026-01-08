@@ -113,6 +113,7 @@ export const initialCustomerFormData: CustomerFormData = {
   // Step 0
   firstName: "",
   lastName: "",
+  dateOfBirth: "",
   nationality: "",
   email: "",
   phone: "",
@@ -129,6 +130,7 @@ export const initialCustomerFormData: CustomerFormData = {
   apartment: "",
   city: "",
   emirate: "",
+  serviceAreaId: "",
   latitude: null,
   longitude: null,
   // Step 3

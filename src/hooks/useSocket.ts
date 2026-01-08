@@ -96,7 +96,7 @@ export const useSocket = (conversationId: string | null) => {
           console.log('Socket connected, setting up listeners');
           
           // Set up message listener
-          onMessage(handleMessage);
+      onMessage(handleMessage);
           
           // Set up conversation listeners for real-time updates
           onConversations(handleConversations);
@@ -154,7 +154,7 @@ export const useSocket = (conversationId: string | null) => {
       const joinRoom = () => {
         if (socketRef.current.connected) {
           if (!joinedRoomsRef.current.has(conversationId)) {
-            joinConversation(conversationId);
+      joinConversation(conversationId);
             joinedRoomsRef.current.add(conversationId);
           }
         }
