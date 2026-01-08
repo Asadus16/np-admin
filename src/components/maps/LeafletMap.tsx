@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -88,12 +88,36 @@ export default function LeafletMap({
   onLocationChange,
   triggerPan,
 }: LeafletMapProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    // Ensure component only renders on client side and DOM is ready
+    if (typeof window !== "undefined") {
+      // Small delay to ensure DOM is fully ready
+      const timer = setTimeout(() => {
+        setIsMounted(true);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  if (!isMounted || typeof window === "undefined") {
+    return (
+      <div className="w-full h-full bg-gray-50 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <p className="text-sm">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <MapContainer
       center={center}
       zoom={markerPosition ? 15 : 12}
       style={{ width: "100%", height: "100%" }}
       scrollWheelZoom={true}
+      key={`map-${center[0]}-${center[1]}-${isMounted}`}
     >
       <TileLayer
         attribution='Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ'
