@@ -1,43 +1,117 @@
 "use client";
 
 import { useState } from "react";
-import { Gift, TrendingUp, ShoppingCart, ArrowUp, ArrowDown, Download, Calendar } from "lucide-react";
+import { Gift, TrendingUp, ShoppingCart, ArrowUp, ArrowDown, Calendar, AlertCircle, RefreshCw } from "lucide-react";
+import { usePointsBalance } from "@/hooks/usePointsBalance";
+import { usePointsHistory } from "@/hooks/usePointsHistory";
+import { format } from "date-fns";
+import type { PointsTransaction } from "@/types/points";
 
-// Static points data
-const pointsData = {
-  balance: 1850,
-  lifetimeEarned: 3200,
-  lifetimeRedeemed: 1350,
-  expiringPoints: 150,
-  expiryDate: "Mar 31, 2025",
-};
+// Default discount per point (1 point = 1 AED discount)
+// This matches the typical default setting and actual redemption will use the correct value from the API
+const DEFAULT_DISCOUNT_PER_POINT = 1;
 
-const transactions = [
-  { id: 1, type: "earned", amount: 35, description: "Order ORD-2024-001", date: "Dec 28, 2024", order: "ORD-2024-001" },
-  { id: 2, type: "redeemed", amount: 200, description: "Discount on Order", date: "Dec 25, 2024", order: "ORD-2024-003" },
-  { id: 3, type: "earned", amount: 45, description: "Order ORD-2024-003", date: "Dec 25, 2024", order: "ORD-2024-003" },
-  { id: 4, type: "earned", amount: 28, description: "Order ORD-2024-004", date: "Dec 22, 2024", order: "ORD-2024-004" },
-  { id: 5, type: "earned", amount: 65, description: "Order ORD-2024-005", date: "Dec 20, 2024", order: "ORD-2024-005" },
-  { id: 6, type: "earned", amount: 40, description: "Order ORD-2024-007", date: "Dec 15, 2024", order: "ORD-2024-007" },
-  { id: 7, type: "redeemed", amount: 500, description: "Discount on Order", date: "Dec 10, 2024", order: "ORD-2024-008" },
-  { id: 8, type: "earned", amount: 18, description: "Order ORD-2024-008", date: "Dec 12, 2024", order: "ORD-2024-008" },
-  { id: 9, type: "bonus", amount: 100, description: "Welcome Bonus", date: "Dec 1, 2024", order: null },
-  { id: 10, type: "earned", amount: 50, description: "Referral Bonus", date: "Nov 28, 2024", order: null },
-];
-
-const rewards = [
-  { id: 1, name: "AED 50 Off", points: 500, description: "Get AED 50 off your next order" },
-  { id: 2, name: "AED 100 Off", points: 950, description: "Get AED 100 off your next order" },
-  { id: 3, name: "Free Cleaning", points: 2500, description: "Redeem for a free basic cleaning service" },
-  { id: 4, name: "Priority Booking", points: 300, description: "Get priority booking for 1 month" },
+// Predefined reward tiers based on points
+const getRewardTiers = (discountPerPoint: number) => [
+  { id: 1, name: "AED 50 Off", points: Math.ceil(50 / discountPerPoint), description: "Get AED 50 off your next order" },
+  { id: 2, name: "AED 100 Off", points: Math.ceil(100 / discountPerPoint), description: "Get AED 100 off your next order" },
+  { id: 3, name: "AED 200 Off", points: Math.ceil(200 / discountPerPoint), description: "Get AED 200 off your next order" },
+  { id: 4, name: "AED 500 Off", points: Math.ceil(500 / discountPerPoint), description: "Get AED 500 off your next order" },
 ];
 
 export default function PointsPage() {
-  const [filter, setFilter] = useState<"all" | "earned" | "redeemed">("all");
+  const [filter, setFilter] = useState<"all" | "earned" | "redeemed" | "expired" | "adjusted">("all");
+  const [page, setPage] = useState(1);
+  
+  // Use default discount per point (1 AED per point)
+  // The actual redemption calculation will use the correct value from the API
+  const discountPerPoint = DEFAULT_DISCOUNT_PER_POINT;
 
-  const filteredTransactions = filter === "all"
-    ? transactions
-    : transactions.filter((t) => t.type === filter || (filter === "earned" && t.type === "bonus"));
+  const { balance, loading: balanceLoading, error: balanceError, refresh: refreshBalance } = usePointsBalance();
+  const { history, loading: historyLoading, error: historyError } = usePointsHistory({
+    page,
+    perPage: 20,
+    type: filter === "all" ? undefined : filter,
+  });
+
+  const rewards = getRewardTiers(discountPerPoint);
+
+  const filteredTransactions = history?.data || [];
+
+  // Calculate AED value from points
+  const calculateAEDValue = (points: number) => {
+    return (points * discountPerPoint).toFixed(2);
+  };
+
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case "earned":
+      case "adjusted":
+        return <ArrowUp className="h-4 w-4 text-green-600" />;
+      case "redeemed":
+        return <ArrowDown className="h-4 w-4 text-red-600" />;
+      case "expired":
+        return <Calendar className="h-4 w-4 text-gray-600" />;
+      default:
+        return <ArrowUp className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const getTransactionColor = (type: string) => {
+    switch (type) {
+      case "earned":
+      case "adjusted":
+        return "text-green-600";
+      case "redeemed":
+        return "text-red-600";
+      case "expired":
+        return "text-gray-600";
+      default:
+        return "text-gray-600";
+    }
+  };
+
+  if (balanceLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-500">Loading points data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (balanceError) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">Error Loading Points</p>
+              <p className="text-sm text-red-700 mt-1">{balanceError}</p>
+              <button
+                onClick={refreshBalance}
+                className="mt-3 inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!balance) {
+    return (
+      <div className="text-center p-8 text-gray-500">
+        <p>No balance data available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -47,9 +121,12 @@ export default function PointsPage() {
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Points & Rewards</h1>
           <p className="text-sm text-gray-500 mt-1">Earn and redeem points on every order</p>
         </div>
-        <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-          <Download className="h-4 w-4 mr-2" />
-          Export History
+        <button
+          onClick={refreshBalance}
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
         </button>
       </div>
 
@@ -58,19 +135,19 @@ export default function PointsPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-gray-400 text-sm">Available Points</p>
-            <p className="text-4xl font-bold mt-1">{pointsData.balance.toLocaleString()}</p>
+            <p className="text-4xl font-bold mt-1">{balance.available_points.toLocaleString()}</p>
             <p className="text-gray-400 text-sm mt-2">
-              = AED {Math.floor(pointsData.balance / 10)} value
+              = AED {calculateAEDValue(balance.available_points)} value
             </p>
           </div>
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
             <Gift className="h-8 w-8" />
           </div>
         </div>
-        {pointsData.expiringPoints > 0 && (
+        {balance.expiring_soon > 0 && (
           <div className="mt-4 pt-4 border-t border-white/20 text-sm">
-            <p className="text-gray-400">
-              {pointsData.expiringPoints} points expiring on {pointsData.expiryDate}
+            <p className="text-yellow-300">
+              ⚠️ {balance.expiring_soon} points expiring soon
             </p>
           </div>
         )}
@@ -84,7 +161,7 @@ export default function PointsPage() {
               <TrendingUp className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{pointsData.lifetimeEarned.toLocaleString()}</p>
+              <p className="text-2xl font-semibold text-gray-900">{balance.lifetime_earned.toLocaleString()}</p>
               <p className="text-sm text-gray-500">Lifetime Earned</p>
             </div>
           </div>
@@ -95,7 +172,7 @@ export default function PointsPage() {
               <ShoppingCart className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{pointsData.lifetimeRedeemed.toLocaleString()}</p>
+              <p className="text-2xl font-semibold text-gray-900">{balance.lifetime_redeemed.toLocaleString()}</p>
               <p className="text-sm text-gray-500">Total Redeemed</p>
             </div>
           </div>
@@ -106,8 +183,8 @@ export default function PointsPage() {
               <Gift className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">10%</p>
-              <p className="text-sm text-gray-500">Earn Rate (per AED)</p>
+              <p className="text-2xl font-semibold text-gray-900">{balance.pending_points.toLocaleString()}</p>
+              <p className="text-sm text-gray-500">Pending Points</p>
             </div>
           </div>
         </div>
@@ -120,32 +197,35 @@ export default function PointsPage() {
           <p className="text-sm text-gray-500">Redeem your points for these rewards</p>
         </div>
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {rewards.map((reward) => (
-            <div
-              key={reward.id}
-              className={`p-4 rounded-lg border-2 ${
-                pointsData.balance >= reward.points
-                  ? "border-gray-300 bg-gray-50"
-                  : "border-gray-200 bg-gray-50"
-              }`}
-            >
-              <p className="font-medium text-gray-900">{reward.name}</p>
-              <p className="text-xs text-gray-500 mt-1">{reward.description}</p>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-600">{reward.points} pts</span>
-                <button
-                  disabled={pointsData.balance < reward.points}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg ${
-                    pointsData.balance >= reward.points
-                      ? "bg-gray-900 text-white hover:bg-gray-800"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
-                >
-                  Redeem
-                </button>
+          {rewards.map((reward) => {
+            const canRedeem = balance.available_points >= reward.points;
+            return (
+              <div
+                key={reward.id}
+                className={`p-4 rounded-lg border-2 ${
+                  canRedeem
+                    ? "border-gray-300 bg-gray-50 hover:border-gray-400 transition-colors"
+                    : "border-gray-200 bg-gray-50 opacity-75"
+                }`}
+              >
+                <p className="font-medium text-gray-900">{reward.name}</p>
+                <p className="text-xs text-gray-500 mt-1">{reward.description}</p>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-600">{reward.points} pts</span>
+                  <button
+                    disabled={!canRedeem}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg ${
+                      canRedeem
+                        ? "bg-gray-900 text-white hover:bg-gray-800"
+                        : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    Redeem
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -156,11 +236,14 @@ export default function PointsPage() {
             <h2 className="font-semibold text-gray-900">Points History</h2>
             <p className="text-sm text-gray-500">Your points transactions</p>
           </div>
-          <div className="flex gap-2">
-            {(["all", "earned", "redeemed"] as const).map((f) => (
+          <div className="flex gap-2 flex-wrap">
+            {(["all", "earned", "redeemed", "expired", "adjusted"] as const).map((f) => (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => {
+                  setFilter(f);
+                  setPage(1);
+                }}
                 className={`px-3 py-1.5 text-sm font-medium rounded-lg capitalize ${
                   filter === f
                     ? "bg-gray-900 text-white"
@@ -172,31 +255,83 @@ export default function PointsPage() {
             ))}
           </div>
         </div>
-        <div className="divide-y divide-gray-100">
-          {filteredTransactions.map((tx) => (
-            <div key={tx.id} className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 rounded-lg bg-gray-100">
-                  {tx.type === "earned" || tx.type === "bonus" ? (
-                    <ArrowUp className="h-4 w-4 text-gray-600" />
-                  ) : (
-                    <ArrowDown className="h-4 w-4 text-gray-600" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{tx.description}</p>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Calendar className="h-3 w-3" />
-                    {tx.date}
+        {historyLoading ? (
+          <div className="p-8 text-center">
+            <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm text-gray-500">Loading history...</p>
+          </div>
+        ) : historyError ? (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg m-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">Error</p>
+                <p className="text-sm text-red-700 mt-1">{historyError}</p>
+              </div>
+            </div>
+          </div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <p className="text-sm">No transactions found</p>
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-gray-100">
+              {filteredTransactions.map((tx: PointsTransaction) => (
+                <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="p-2 rounded-lg bg-gray-100 flex-shrink-0">
+                      {getTransactionIcon(tx.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{tx.description}</p>
+                      {tx.order_number && (
+                        <p className="text-xs text-gray-500 mt-1">Order: {tx.order_number}</p>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(tx.created_at), "MMM dd, yyyy HH:mm")}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right ml-4">
+                    <span className={`text-sm font-semibold ${getTransactionColor(tx.type)}`}>
+                      {tx.points > 0 ? "+" : ""}{tx.points} pts
+                    </span>
+                    <p className="text-xs text-gray-500 mt-1">Balance: {tx.balance_after}</p>
                   </div>
                 </div>
-              </div>
-              <span className="text-sm font-semibold text-gray-900">
-                {tx.type === "earned" || tx.type === "bonus" ? "+" : "-"}{tx.amount} pts
-              </span>
+              ))}
             </div>
-          ))}
-        </div>
+            {/* Pagination */}
+            {history && history.meta.last_page > 1 && (
+              <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p className="text-sm text-gray-600">
+                  Showing {history.meta.from} to {history.meta.to} of {history.meta.total} transactions
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(page - 1)}
+                    disabled={page === 1}
+                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-4 py-2 text-sm text-gray-600 flex items-center">
+                    Page {history.meta.current_page} of {history.meta.last_page}
+                  </span>
+                  <button
+                    onClick={() => setPage(page + 1)}
+                    disabled={page === history.meta.last_page}
+                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

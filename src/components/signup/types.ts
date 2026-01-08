@@ -64,6 +64,7 @@ export interface CustomerFormData {
   // Step 0 - Account
   firstName: string;
   lastName: string;
+  dateOfBirth: string;
   nationality: string;
   email: string;
   phone: string;
@@ -82,6 +83,7 @@ export interface CustomerFormData {
   apartment: string;
   city: string;
   emirate: string;
+  serviceAreaId: string;
   latitude: number | null;
   longitude: number | null;
 

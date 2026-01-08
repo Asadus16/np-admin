@@ -125,9 +125,11 @@ export interface RegisterCredentials {
   trn?: string;
   // Customer-specific fields (required when role is 'customer')
   nationality?: string;
+  date_of_birth?: string;
   emirates_id_number?: string;
   emirates_id_front?: File;
   emirates_id_back?: File;
+  service_area_id?: string;
   address_label?: string;
   address_street?: string;
   address_building?: string;

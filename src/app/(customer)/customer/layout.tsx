@@ -9,7 +9,7 @@ export default function CustomerRootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <RoleGuard allowedRoles={["customer", "user"]}>
+    <RoleGuard allowedRoles={["customer"]}>
       <CustomerLayout>{children}</CustomerLayout>
     </RoleGuard>
   );

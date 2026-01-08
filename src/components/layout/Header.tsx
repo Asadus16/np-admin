@@ -117,7 +117,6 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
       case "vendor":
         return "Vendor";
       case "customer":
-      case "user":
         return "Customer";
       case "technician":
         return "Technician";
@@ -127,7 +126,7 @@ export function Header({ isCollapsed, onToggleSidebar, onToggleMobile }: HeaderP
   };
 
   const getNotificationsPath = () => {
-    if (hasRole(user, "customer") || hasRole(user, "user")) {
+    if (hasRole(user, "customer")) {
       return "/customer/notifications";
     }
     if (hasRole(user, "vendor")) {
