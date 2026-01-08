@@ -3,6 +3,7 @@
 import { CustomerFormData } from "../types";
 import { NATIONALITIES, EMIRATES } from "../constants";
 import LocationPicker from "@/components/maps/LocationPicker";
+import type { ServiceArea } from "@/types/serviceArea";
 import {
   User,
   Mail,
@@ -14,6 +15,7 @@ import {
   X,
   Users,
   MapPin,
+  Calendar,
 } from "lucide-react";
 
 interface CustomerStepsProps {
@@ -28,6 +30,9 @@ interface CustomerStepsProps {
   // File input refs
   emiratesIdFrontRef: React.RefObject<HTMLInputElement>;
   emiratesIdBackRef: React.RefObject<HTMLInputElement>;
+  // Service areas
+  serviceAreas?: ServiceArea[];
+  serviceAreasLoading?: boolean;
   // Loading state
   isLoading?: boolean;
 }
@@ -42,6 +47,8 @@ export default function CustomerSteps({
   handleVerifyOtp,
   emiratesIdFrontRef,
   emiratesIdBackRef,
+  serviceAreas = [],
+  serviceAreasLoading = false,
   isLoading = false,
 }: CustomerStepsProps) {
   const handleFileChange = (
@@ -106,6 +113,27 @@ export default function CustomerSteps({
             <p className="text-xs text-red-500 mt-1">{fieldErrors.lastName}</p>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Birth</label>
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="date"
+            value={formData.dateOfBirth}
+            onChange={(e) => updateFormData("dateOfBirth", e.target.value)}
+            max={new Date().toISOString().split('T')[0]}
+            className={`w-full pl-10 pr-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
+              fieldErrors.dateOfBirth
+                ? "border-red-500 focus:ring-red-500/20"
+                : "border-gray-300 focus:ring-green-500/20 focus:border-green-500"
+            }`}
+          />
+        </div>
+        {fieldErrors.dateOfBirth && (
+          <p className="text-xs text-red-500 mt-1">{fieldErrors.dateOfBirth}</p>
+        )}
       </div>
 
       <div>
@@ -460,6 +488,35 @@ export default function CustomerSteps({
             <p className="text-xs text-red-500 mt-1">{fieldErrors.emirate}</p>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Service Area</label>
+        {serviceAreasLoading ? (
+          <div className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg bg-gray-50">
+            <p className="text-gray-500">Loading service areas...</p>
+          </div>
+        ) : (
+          <select
+            value={formData.serviceAreaId}
+            onChange={(e) => updateFormData("serviceAreaId", e.target.value)}
+            className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
+              fieldErrors.serviceAreaId
+                ? "border-red-500 focus:ring-red-500/20"
+                : "border-gray-300 focus:ring-green-500/20 focus:border-green-500"
+            }`}
+          >
+            <option value="">Select service area</option>
+            {serviceAreas.map((area) => (
+              <option key={area.id} value={area.id}>
+                {area.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {fieldErrors.serviceAreaId && (
+          <p className="text-xs text-red-500 mt-1">{fieldErrors.serviceAreaId}</p>
+        )}
       </div>
 
       {/* Map for location selection */}

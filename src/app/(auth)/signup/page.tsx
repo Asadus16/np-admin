@@ -103,6 +103,7 @@ export default function SignupPage() {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
   const [serviceAreasLoading, setServiceAreasLoading] = useState(false);
+  const [serviceAreasFetched, setServiceAreasFetched] = useState(false);
 
   // Load saved vendor form data from localStorage on mount
   useEffect(() => {
@@ -245,10 +246,36 @@ export default function SignupPage() {
     }
   }, [vendorStep]);
 
-  // Fetch categories and service areas on mount using public APIs
+  // Fetch service areas when customer or vendor role is selected
+  useEffect(() => {
+    if (role === "vendor" || role === "customer") {
+      // Fetch service areas if not already loaded
+      if (!serviceAreasFetched) {
+        const fetchServiceAreas = async () => {
+          setServiceAreasLoading(true);
+          try {
+            console.log("Fetching service areas for", role);
+            const serviceAreasResponse = await getPublicServiceAreas(1);
+            setServiceAreas(serviceAreasResponse.data || []);
+            setServiceAreasFetched(true);
+            console.log("Service areas fetched:", serviceAreasResponse.data?.length || 0);
+          } catch (error) {
+            console.error("Error fetching service areas:", error);
+          } finally {
+            setServiceAreasLoading(false);
+          }
+        };
+
+        fetchServiceAreas();
+      }
+    }
+  }, [role, serviceAreasFetched]);
+
+  // Fetch categories and service areas on mount using public APIs (for vendor)
   useEffect(() => {
     if (!dataFetched && role === "vendor") {
       const fetchData = async () => {
+        // Fetch categories only for vendor
         setCategoriesLoading(true);
         try {
           const categoriesResponse = await getPublicCategories(1);
@@ -258,16 +285,6 @@ export default function SignupPage() {
         } finally {
           setCategoriesLoading(false);
         }
-
-        setServiceAreasLoading(true);
-        try {
-          const serviceAreasResponse = await getPublicServiceAreas(1);
-          setServiceAreas(serviceAreasResponse.data || []);
-        } catch (error) {
-          console.error("Error fetching service areas:", error);
-        } finally {
-          setServiceAreasLoading(false);
-        }
       };
 
       fetchData();
@@ -275,7 +292,7 @@ export default function SignupPage() {
     }
   }, [dataFetched, role]);
 
-  // Fetch data when switching to vendor role
+  // Reset dataFetched when switching roles
   useEffect(() => {
     if (role === "vendor" && !dataFetched) {
       setDataFetched(false);
@@ -597,6 +614,21 @@ export default function SignupPage() {
       case 0: // Account
         if (!customerFormData.firstName.trim()) errors.firstName = "First name is required";
         if (!customerFormData.lastName.trim()) errors.lastName = "Last name is required";
+        if (!customerFormData.dateOfBirth) errors.dateOfBirth = "Date of birth is required";
+        else {
+          const dob = new Date(customerFormData.dateOfBirth);
+          const today = new Date();
+          const age = today.getFullYear() - dob.getFullYear();
+          const monthDiff = today.getMonth() - dob.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            const actualAge = age - 1;
+            if (actualAge < 18) {
+              errors.dateOfBirth = "You must be at least 18 years old";
+            }
+          } else if (age < 18) {
+            errors.dateOfBirth = "You must be at least 18 years old";
+          }
+        }
         if (!customerFormData.nationality) errors.nationality = "Nationality is required";
         if (!customerFormData.email.trim()) errors.email = "Email is required";
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerFormData.email)) {
@@ -630,6 +662,7 @@ export default function SignupPage() {
         if (!customerFormData.street.trim()) errors.street = "Street address is required";
         if (!customerFormData.city.trim()) errors.city = "City is required";
         if (!customerFormData.emirate) errors.emirate = "Emirate is required";
+        if (!customerFormData.serviceAreaId) errors.serviceAreaId = "Service area is required";
         break;
 
       case 3: // Phone Verification
@@ -781,6 +814,7 @@ export default function SignupPage() {
         firebase_id_token: firebaseIdToken || undefined,
         // Customer-specific fields (format phone with + to match Firebase format)
         phone: formattedPhone,
+        date_of_birth: customerFormData.dateOfBirth || undefined,
         nationality: customerFormData.nationality || undefined,
         // Emirates ID
         emirates_id_number: customerFormData.emiratesIdNumber || undefined,
@@ -793,6 +827,7 @@ export default function SignupPage() {
         address_apartment: customerFormData.apartment || undefined,
         address_city: customerFormData.city || undefined,
         address_emirate: customerFormData.emirate || undefined,
+        service_area_id: customerFormData.serviceAreaId || undefined,
         address_latitude: customerFormData.latitude || undefined,
         address_longitude: customerFormData.longitude || undefined,
         // Payment (optional)
@@ -886,6 +921,8 @@ export default function SignupPage() {
     handleVerifyOtp,
     emiratesIdFrontRef: emiratesIdFrontRef as React.RefObject<HTMLInputElement>,
     emiratesIdBackRef: emiratesIdBackRef as React.RefObject<HTMLInputElement>,
+    serviceAreas,
+    serviceAreasLoading,
   });
 
   // Vendor current step renderer

@@ -23,6 +23,7 @@ import {
   Wallet,
   BarChart3,
   Settings,
+  Coins,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
@@ -74,6 +75,11 @@ const navigation: NavItem[] = [
     name: "Coupons",
     href: "/admin/coupons",
     icon: <Tag className="h-4 w-4" />,
+  },
+  {
+    name: "Points",
+    href: "/admin/points",
+    icon: <Coins className="h-4 w-4" />,
   },
   {
     name: "Payouts",

@@ -115,11 +115,15 @@ async function apiRegisterCustomer(credentials: RegisterCredentials): Promise<Au
   // Customer-specific fields
   if (credentials.phone) formData.append('phone', credentials.phone);
   if (credentials.nationality) formData.append('nationality', credentials.nationality);
+  if (credentials.date_of_birth) formData.append('date_of_birth', credentials.date_of_birth);
 
   // Emirates ID (backend expects 'emirates_id' not 'emirates_id_number')
   if (credentials.emirates_id_number) formData.append('emirates_id', credentials.emirates_id_number);
   if (credentials.emirates_id_front) formData.append('emirates_id_front', credentials.emirates_id_front);
   if (credentials.emirates_id_back) formData.append('emirates_id_back', credentials.emirates_id_back);
+
+  // Service Area
+  if (credentials.service_area_id) formData.append('service_area_id', credentials.service_area_id);
 
   // Address (backend expects nested format: address.field_name)
   if (credentials.address_label) formData.append('address[label]', credentials.address_label);
@@ -217,7 +221,6 @@ export function getRedirectPath(role: Role | null): string {
     case 'vendor':
       return '/vendor';
     case 'customer':
-    case 'user':
       return '/customer';
     case 'technician':
       return '/technician';
