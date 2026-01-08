@@ -4,6 +4,12 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:6001'
 
 let socket: Socket | null = null;
 let isInitialized = false; // Track if socket is initialized
+let currentUserId: number | string | null = null; // Track current user for reconnection
+// Store notification handlers for proper cleanup (original callback -> { wrapper, connectHandler })
+const notificationHandlers = new Map<
+  (data: SocketNotification) => void,
+  { wrapper: (data: SocketNotification) => void; connectHandler?: () => void }
+>();
 
 export interface SocketMessage {
   conversationId: string;
@@ -86,11 +92,17 @@ export const initializeSocket = (): Socket => {
 
     // Set up event listeners only once
     socket.on('connect', () => {
-      console.log('Socket connected:', socket?.id);
+      console.log('[SOCKET] Socket connected, id:', socket?.id);
+      // If we have a stored userId, re-authenticate to rejoin the user room
+      // This handles both initial connection and reconnection scenarios
+      if (currentUserId) {
+        console.log('[SOCKET] Auto-authenticating user on connect:', currentUserId);
+        socket?.emit('auth', { userId: currentUserId });
+      }
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
+      console.log('[SOCKET] Socket disconnected:', reason);
       if (reason === 'io server disconnect') {
         // Server disconnected, reconnect manually
         socket?.connect();
@@ -473,19 +485,34 @@ export const requestUnreadCount = (): void => {
 /**
  * Authenticate user and join user-specific room for notifications
  */
-export const authenticateUser = (userId: number): void => {
+export const authenticateUser = (userId: number | string): void => {
+  console.log('[SOCKET] authenticateUser called with userId:', userId);
+
+  // Store userId for reconnection scenarios
+  currentUserId = userId;
+
   const currentSocket = socket || initializeSocket();
   if (currentSocket) {
-    if (currentSocket.connected) {
+    console.log('[SOCKET] Socket exists, connected:', currentSocket.connected, 'id:', currentSocket.id);
+
+    const sendAuth = () => {
       currentSocket.emit('auth', { userId });
-      console.log('Sent auth event with userId:', userId);
+      console.log('[SOCKET] Sent auth event with userId:', userId, 'socket id:', currentSocket.id);
+    };
+
+    if (currentSocket.connected) {
+      sendAuth();
     } else {
       // Wait for connection then authenticate
       currentSocket.once('connect', () => {
-        currentSocket.emit('auth', { userId });
-        console.log('Sent auth event after connection with userId:', userId);
+        sendAuth();
       });
+      // Connect the socket if not already connected
+      currentSocket.connect();
+      console.log('[SOCKET] Connecting socket for user authentication...');
     }
+  } else {
+    console.error('[SOCKET] Failed to get socket instance');
   }
 };
 
@@ -502,15 +529,45 @@ export interface SocketNotification {
 
 /**
  * Listen for incoming notifications
+ * Uses the same pattern as useSocket hook - registers directly with connect fallback
  */
 export const onNotification = (callback: (data: SocketNotification) => void): void => {
+  console.log('[SOCKET] onNotification called');
   const currentSocket = socket || initializeSocket();
-  if (currentSocket) {
-    currentSocket.on('notification', (data) => {
-      console.log('Received notification:', data);
-      callback(data);
-    });
-    console.log('Notification listener registered');
+
+  if (!currentSocket) {
+    console.error('[SOCKET] Cannot register notification listener - no socket');
+    return;
+  }
+
+  // Create the handler function
+  const notificationHandler = (data: SocketNotification) => {
+    console.log('[SOCKET] >>> RECEIVED NOTIFICATION:', data);
+    callback(data);
+  };
+
+  // Function to register the listener
+  const registerListener = () => {
+    console.log('[SOCKET] Registering notification listener, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
+    currentSocket.on('notification', notificationHandler);
+    console.log('[SOCKET] Notification listener registered successfully');
+  };
+
+  // If socket is connected, register immediately
+  if (currentSocket.connected) {
+    console.log('[SOCKET] Socket already connected, registering notification listener immediately');
+    registerListener();
+    // Store the mapping for cleanup (no connect handler needed)
+    notificationHandlers.set(callback, { wrapper: notificationHandler });
+  } else {
+    // Socket not connected yet - wait for connection
+    console.log('[SOCKET] Socket not connected, waiting for connect event');
+    const connectHandler = () => {
+      registerListener();
+    };
+    currentSocket.once('connect', connectHandler);
+    // Store both the wrapper and connect handler for cleanup
+    notificationHandlers.set(callback, { wrapper: notificationHandler, connectHandler });
   }
 };
 
@@ -518,7 +575,25 @@ export const onNotification = (callback: (data: SocketNotification) => void): vo
  * Remove notification listener
  */
 export const offNotification = (callback: (data: SocketNotification) => void): void => {
-  if (socket) {
-    socket.off('notification', callback);
+  console.log('[SOCKET] offNotification called');
+  const currentSocket = socket;
+
+  if (currentSocket) {
+    // Get the stored handlers
+    const handlers = notificationHandlers.get(callback);
+    if (handlers) {
+      // Remove the notification listener
+      currentSocket.off('notification', handlers.wrapper);
+      // Also remove the connect handler if it exists (in case connection hasn't happened yet)
+      if (handlers.connectHandler) {
+        currentSocket.off('connect', handlers.connectHandler);
+      }
+      notificationHandlers.delete(callback);
+      console.log('[SOCKET] Notification listener removed successfully');
+    } else {
+      // Fallback: try to remove the callback directly (legacy behavior)
+      currentSocket.off('notification', callback);
+      console.log('[SOCKET] Notification listener removed (fallback)');
+    }
   }
 };

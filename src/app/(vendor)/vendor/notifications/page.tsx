@@ -1,17 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, ClipboardList, DollarSign, Star, Users, Settings, Check } from "lucide-react";
-
-const notifications = [
-  { id: 1, type: "order", title: "New Order Received", message: "John Smith requested Plumbing Repair service", time: "5 minutes ago", read: false },
-  { id: 2, type: "payment", title: "Payment Received", message: "You received $150 for order ORD-156", time: "1 hour ago", read: false },
-  { id: 3, type: "review", title: "New Review", message: "Sarah Johnson left a 5-star review", time: "2 hours ago", read: false },
-  { id: 4, type: "team", title: "Team Update", message: "Mike Johnson accepted your invitation", time: "5 hours ago", read: true },
-  { id: 5, type: "order", title: "Order Completed", message: "Order ORD-155 has been marked as completed", time: "1 day ago", read: true },
-  { id: 6, type: "system", title: "Profile Updated", message: "Your business profile has been updated", time: "2 days ago", read: true },
-  { id: 7, type: "payment", title: "Payout Processed", message: "Your weekly payout of $2,450 has been sent", time: "3 days ago", read: true },
-];
+import { useState, useEffect } from "react";
+import { Bell, ClipboardList, DollarSign, Star, Users, Settings, Check, Loader2 } from "lucide-react";
+import { getAllNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/lib/notification";
+import type { Notification } from "@/types/notification";
 
 const getIcon = (type: string) => {
   switch (type) {
@@ -48,24 +40,82 @@ const getIconBg = (type: string) => {
 };
 
 export default function NotificationsPage() {
-  const [notifs, setNotifs] = useState(notifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  const unreadCount = notifs.filter((n) => !n.read).length;
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getAllNotifications(50);
+      setNotifications(data);
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const filteredNotifs = filter === "all"
-    ? notifs
+    ? notifications
     : filter === "unread"
-    ? notifs.filter((n) => !n.read)
-    : notifs.filter((n) => n.type === filter);
+    ? notifications.filter((n) => !n.is_read)
+    : notifications.filter((n) => n.type === filter);
 
-  const markAllRead = () => {
-    setNotifs(notifs.map((n) => ({ ...n, read: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      setIsMarkingAll(true);
+      await markAllNotificationsAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    } finally {
+      setIsMarkingAll(false);
+    }
   };
 
-  const markAsRead = (id: number) => {
-    setNotifs(notifs.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const markAsRead = async (notification: Notification) => {
+    if (notification.is_read) return;
+
+    try {
+      await markNotificationAsRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, is_read: true } : n))
+      );
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error);
+    }
   };
+
+  const formatNotificationTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+    return date.toLocaleDateString();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -78,10 +128,15 @@ export default function NotificationsPage() {
         </div>
         {unreadCount > 0 && (
           <button
-            onClick={markAllRead}
-            className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={handleMarkAllAsRead}
+            disabled={isMarkingAll}
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Check className="h-4 w-4 mr-2" />
+            {isMarkingAll ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
             Mark all as read
           </button>
         )}
@@ -116,7 +171,7 @@ export default function NotificationsPage() {
           {filteredNotifs.map((notif) => (
             <div
               key={notif.id}
-              className={`p-4 flex items-start gap-4 ${!notif.read ? "bg-blue-50/30" : ""}`}
+              className={`p-4 flex items-start gap-4 ${!notif.is_read ? "bg-blue-50/30" : ""}`}
             >
               <div className={`p-2 rounded-lg ${getIconBg(notif.type)}`}>
                 {getIcon(notif.type)}
@@ -124,21 +179,21 @@ export default function NotificationsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className={`text-sm ${!notif.read ? "font-medium text-gray-900" : "text-gray-700"}`}>
+                    <p className={`text-sm ${!notif.is_read ? "font-medium text-gray-900" : "text-gray-700"}`}>
                       {notif.title}
                     </p>
                     <p className="text-sm text-gray-500 mt-0.5">{notif.message}</p>
                   </div>
-                  {!notif.read && (
+                  {!notif.is_read && (
                     <button
-                      onClick={() => markAsRead(notif.id)}
+                      onClick={() => markAsRead(notif)}
                       className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap"
                     >
                       Mark read
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                <p className="text-xs text-gray-400 mt-1">{formatNotificationTime(notif.created_at)}</p>
               </div>
             </div>
           ))}

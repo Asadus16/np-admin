@@ -6,7 +6,6 @@ import companyReducer from './slices/companySlice';
 import analyticsReducer from './slices/analyticsSlice';
 import planReducer from './slices/planSlice';
 import chatReducer from './slices/chatSlice';
-import notificationReducer from './slices/notificationSlice';
 import technicianAssignmentReducer from './slices/technicianAssignmentSlice';
 import technicianJobReducer from './slices/technicianJobSlice';
 import pointsReducer from './slices/pointsSlice';
@@ -20,7 +19,6 @@ export const store = configureStore({
     analytics: analyticsReducer,
     plan: planReducer,
     chat: chatReducer,
-    notification: notificationReducer,
     technicianAssignment: technicianAssignmentReducer,
     technicianJob: technicianJobReducer,
     points: pointsReducer,

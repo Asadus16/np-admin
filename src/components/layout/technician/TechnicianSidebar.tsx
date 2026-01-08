@@ -15,6 +15,7 @@ import {
   User,
   History,
   Settings,
+  Star,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
@@ -65,6 +66,11 @@ const navigation: NavItem[] = [
     name: "History",
     href: "/technician/history",
     icon: <History className="h-4 w-4" />,
+  },
+  {
+    name: "Reviews",
+    href: "/technician/reviews",
+    icon: <Star className="h-4 w-4" />,
   },
   {
     name: "Profile",

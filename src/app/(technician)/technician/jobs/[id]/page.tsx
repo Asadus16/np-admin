@@ -27,7 +27,11 @@ import {
   X,
   Upload,
   Trash2,
+  Star,
 } from "lucide-react";
+import { ReviewModal } from "@/components/reviews/ReviewModal";
+import { createTechnicianReview, getOrderReviews } from "@/lib/review";
+import { Review } from "@/types/review";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
   fetchJob,
@@ -64,6 +68,9 @@ export default function JobDetailPage() {
   const [evidenceType, setEvidenceType] = useState<"before" | "after" | "other">("before");
   const [evidenceCaption, setEvidenceCaption] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [hasReviewedCustomer, setHasReviewedCustomer] = useState(false);
+  const [existingReview, setExistingReview] = useState<Review | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -73,6 +80,27 @@ export default function JobDetailPage() {
       dispatch(clearCurrentJob());
     };
   }, [dispatch, params.id]);
+
+  // Check if technician has already reviewed the customer
+  useEffect(() => {
+    async function checkReviewStatus() {
+      if (!job || job.technician_status !== "completed") return;
+
+      try {
+        const reviews = await getOrderReviews(job.id);
+        const technicianReview = reviews.find(
+          (r) => r.type === "technician_to_customer"
+        );
+        if (technicianReview) {
+          setHasReviewedCustomer(true);
+          setExistingReview(technicianReview);
+        }
+      } catch (err) {
+        console.error("Failed to check review status:", err);
+      }
+    }
+    checkReviewStatus();
+  }, [job?.id, job?.technician_status]);
 
   const getStatusColor = (status: TechnicianStatus) => {
     switch (status) {
@@ -184,6 +212,20 @@ export default function JobDetailPage() {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${job.address.latitude},${job.address.longitude}`;
       window.open(url, "_blank");
     }
+  };
+
+  const handleSubmitReview = async (rating: number, comment: string) => {
+    if (!job) return;
+
+    await createTechnicianReview({
+      order_id: job.id,
+      type: "technician_to_customer",
+      rating,
+      comment: comment || undefined,
+    });
+
+    setHasReviewedCustomer(true);
+    setShowReviewModal(false);
   };
 
   const handleChatWithCustomer = async () => {
@@ -591,6 +633,52 @@ export default function JobDetailPage() {
               </button>
             </div>
           )}
+
+          {/* Rate Customer Section - for completed jobs */}
+          {job.technician_status === "completed" && (
+            <div className="bg-white border border-gray-200 rounded-lg">
+              <div className="p-4 border-b border-gray-200">
+                <h3 className="text-sm font-medium text-gray-900">Customer Review</h3>
+              </div>
+              <div className="p-4">
+                {hasReviewedCustomer && existingReview ? (
+                  <div>
+                    <div className="flex items-center gap-1 mb-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= existingReview.rating
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {existingReview.comment && (
+                      <p className="text-sm text-gray-600">{existingReview.comment}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2">
+                      Reviewed on {new Date(existingReview.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500 mb-3">
+                      How was your experience with this customer?
+                    </p>
+                    <button
+                      onClick={() => setShowReviewModal(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+                    >
+                      <Star className="h-4 w-4" />
+                      Rate Customer
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -776,6 +864,16 @@ export default function JobDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Review Modal */}
+      <ReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSubmit={handleSubmitReview}
+        type="technician_to_customer"
+        recipientName={job?.customer?.name}
+        orderNumber={job?.order_number}
+      />
     </div>
   );
 }
