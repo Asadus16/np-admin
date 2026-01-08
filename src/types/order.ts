@@ -15,6 +15,14 @@ export interface OrderVendor {
   id: string;
   name: string;
   logo: string;
+  user_id?: number; // Raw user ID for chat (primary vendor)
+}
+
+export interface OrderTechnician {
+  id: number; // Raw ID for chat
+  name: string;
+  email: string;
+  phone: string;
 }
 
 export interface OrderAddress {
@@ -43,6 +51,7 @@ export interface Order {
   id: string;
   order_number: string;
   vendor: OrderVendor;
+  technician: OrderTechnician | null;
   address: OrderAddress;
   payment_method: OrderPaymentMethod | null;
   coupon: OrderCoupon | null;

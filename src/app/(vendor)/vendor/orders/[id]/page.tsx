@@ -29,6 +29,7 @@ import {
   Truck,
   FileCheck,
   Banknote,
+  MessageSquare,
 } from "lucide-react";
 import {
   getVendorOrder,
@@ -42,6 +43,8 @@ import {
   formatTime,
 } from "@/lib/vendorOrder";
 import { VendorOrder, VendorOrderNote } from "@/types/vendorOrder";
+import { useAppDispatch } from "@/store/hooks";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
 
 interface TimelineItem {
   id: string;
@@ -53,6 +56,7 @@ interface TimelineItem {
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<VendorOrder | null>(null);
@@ -147,6 +151,16 @@ export default function OrderDetailPage() {
       console.error(err);
     } finally {
       setNoteLoading(false);
+    }
+  };
+
+  const handleChatWithCustomer = async () => {
+    if (!order?.customer?.user_id) return;
+    try {
+      await dispatch(startOrGetConversation(order.customer.user_id.toString())).unwrap();
+      router.push("/vendor/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
     }
   };
 
@@ -376,6 +390,14 @@ export default function OrderDetailPage() {
               Complete Order
             </button>
           )}
+          {/* Chat with Customer - always visible */}
+          <button
+            onClick={handleChatWithCustomer}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 inline-flex items-center"
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Chat with Customer
+          </button>
         </div>
       </div>
 

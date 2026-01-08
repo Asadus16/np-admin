@@ -43,6 +43,7 @@ import {
   clearCurrentJob,
   clearError,
 } from "@/store/slices/technicianJobSlice";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
 import { TechnicianStatus } from "@/types/technicianJob";
 import { formatDate, formatTime, formatCurrency } from "@/lib/vendorOrder";
 
@@ -182,6 +183,16 @@ export default function JobDetailPage() {
     if (job?.address.latitude && job?.address.longitude) {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${job.address.latitude},${job.address.longitude}`;
       window.open(url, "_blank");
+    }
+  };
+
+  const handleChatWithCustomer = async () => {
+    if (!job?.customer?.user_id) return;
+    try {
+      await dispatch(startOrGetConversation(job.customer.user_id.toString())).unwrap();
+      router.push("/technician/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
     }
   };
 
@@ -328,6 +339,12 @@ export default function JobDetailPage() {
                   >
                     <Phone className="h-5 w-5 text-gray-600" />
                   </a>
+                  <button
+                    onClick={handleChatWithCustomer}
+                    className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    <MessageSquare className="h-5 w-5 text-gray-600" />
+                  </button>
                 </div>
               </div>
 

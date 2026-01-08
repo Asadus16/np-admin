@@ -137,7 +137,7 @@ export const useSocket = (conversationId: string | null) => {
         });
       }
     };
-    
+
     if (socketRef.current?.connected) {
       joinAllRooms();
     } else {

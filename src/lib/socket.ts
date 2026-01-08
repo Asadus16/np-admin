@@ -469,3 +469,56 @@ export const requestUnreadCount = (): void => {
     currentSocket.emit('get_unread_count', {});
   }
 };
+
+/**
+ * Authenticate user and join user-specific room for notifications
+ */
+export const authenticateUser = (userId: number): void => {
+  const currentSocket = socket || initializeSocket();
+  if (currentSocket) {
+    if (currentSocket.connected) {
+      currentSocket.emit('auth', { userId });
+      console.log('Sent auth event with userId:', userId);
+    } else {
+      // Wait for connection then authenticate
+      currentSocket.once('connect', () => {
+        currentSocket.emit('auth', { userId });
+        console.log('Sent auth event after connection with userId:', userId);
+      });
+    }
+  }
+};
+
+export interface SocketNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  priority: string;
+  data: Record<string, any>;
+  read_at: string | null;
+  created_at: string;
+}
+
+/**
+ * Listen for incoming notifications
+ */
+export const onNotification = (callback: (data: SocketNotification) => void): void => {
+  const currentSocket = socket || initializeSocket();
+  if (currentSocket) {
+    currentSocket.on('notification', (data) => {
+      console.log('Received notification:', data);
+      callback(data);
+    });
+    console.log('Notification listener registered');
+  }
+};
+
+/**
+ * Remove notification listener
+ */
+export const offNotification = (callback: (data: SocketNotification) => void): void => {
+  if (socket) {
+    socket.off('notification', callback);
+  }
+};

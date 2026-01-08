@@ -28,10 +28,13 @@ import {
 } from "lucide-react";
 import { getOrder, cancelOrder } from "@/lib/order";
 import { Order } from "@/types/order";
+import { useAppDispatch } from "@/store/hooks";
+import { startOrGetConversation } from "@/store/slices/chatSlice";
 
 export default function OrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -75,6 +78,30 @@ export default function OrderDetailsPage() {
       setError(errorMessage);
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleChatWithVendor = async () => {
+    if (!order?.vendor?.user_id) return;
+    try {
+      // Start or get conversation with primary vendor
+      await dispatch(startOrGetConversation(order.vendor.user_id.toString())).unwrap();
+      // Navigate to messages page
+      router.push("/customer/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
+    }
+  };
+
+  const handleChatWithTechnician = async () => {
+    if (!order?.technician?.id) return;
+    try {
+      // Start or get conversation with technician
+      await dispatch(startOrGetConversation(order.technician.id.toString())).unwrap();
+      // Navigate to messages page
+      router.push("/customer/messages");
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
     }
   };
 
@@ -613,10 +640,22 @@ export default function OrderDetailsPage() {
 
           {/* Actions */}
           <div className="space-y-2">
-            <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button
+              onClick={handleChatWithVendor}
+              className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
               <MessageSquare className="h-4 w-4 mr-2" />
               Chat with Vendor
             </button>
+            {order.technician && (
+              <button
+                onClick={handleChatWithTechnician}
+                className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Chat with Technician
+              </button>
+            )}
             {canCancel() && (
               <button
                 onClick={() => setShowCancelModal(true)}

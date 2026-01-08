@@ -34,6 +34,7 @@ export interface CompanyService {
 
 export interface Company {
   id: string;
+  user_id?: number; // Raw user ID for chat (primary vendor)
   name: string;
   email: string | null;
   trade_license_number: string;

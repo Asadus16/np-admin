@@ -7,6 +7,7 @@ export interface ChatUser {
   id: string;
   first_name: string;
   last_name: string;
+  name?: string; // Display name (company name for vendors, or first + last name)
   email: string;
   phone?: string;
   roles: Role[];
