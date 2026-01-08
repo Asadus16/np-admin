@@ -7,6 +7,7 @@ export interface Role {
 
 export interface Company {
   id: string;
+  user_id?: number; // Raw user ID for chat (primary vendor)
   name: string;
 }
 

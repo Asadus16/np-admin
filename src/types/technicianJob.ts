@@ -12,6 +12,7 @@ export type TechnicianStatus =
 
 export interface TechnicianJobCustomer {
   id: string;
+  user_id: number; // Raw user ID for chat
   name: string;
   email: string;
   phone: string;

@@ -158,6 +158,7 @@ export async function getUnreadCount(): Promise<UnreadCountResponse> {
 
 /**
  * Search for users to start a conversation with
+ * Returns only users the authenticated user is allowed to chat with
  * @param query - Search query string
  * @returns List of users matching the search
  */
@@ -174,7 +175,7 @@ export async function searchUsers(query: string = ''): Promise<{
   const params = new URLSearchParams();
   if (query) params.append('search', query);
 
-  const response = await fetch(`${API_URL}/admin/users/search?${params.toString()}`, {
+  const response = await fetch(`${API_URL}/chat/users/search?${params.toString()}`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

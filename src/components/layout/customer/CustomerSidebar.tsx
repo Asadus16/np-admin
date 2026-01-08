@@ -21,6 +21,7 @@ import {
   FileText,
   PlusCircle,
   Store,
+  Star,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
@@ -79,6 +80,11 @@ const navigation: NavItem[] = [
     name: "Messages",
     href: "/customer/messages",
     icon: <MessageSquare className="h-4 w-4" />,
+  },
+  {
+    name: "Reviews",
+    href: "/customer/reviews",
+    icon: <Star className="h-4 w-4" />,
   },
   {
     name: "Notifications",

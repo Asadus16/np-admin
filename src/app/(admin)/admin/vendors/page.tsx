@@ -297,18 +297,20 @@ export default function VendorsPage() {
                             >
                               <Eye className="h-4 w-4" /> View
                             </Link>
-                            <button
-                              onClick={() => handleSendMessage(vendor.user_id)}
-                              disabled={messageLoading === vendor.user_id}
-                              className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full disabled:opacity-50"
-                            >
-                              {messageLoading === vendor.user_id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <MessageSquare className="h-4 w-4" />
-                              )}
-                              Message
-                            </button>
+                            {vendor.user_id && (
+                              <button
+                                onClick={() => handleSendMessage(vendor.user_id!.toString())}
+                                disabled={messageLoading === vendor.user_id.toString()}
+                                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full disabled:opacity-50"
+                              >
+                                {messageLoading === vendor.user_id.toString() ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <MessageSquare className="h-4 w-4" />
+                                )}
+                                Message
+                              </button>
+                            )}
                             <Link
                               href={`/admin/vendors/${vendor.id}/edit`}
                               className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"

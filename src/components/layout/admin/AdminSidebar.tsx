@@ -24,6 +24,7 @@ import {
   BarChart3,
   Settings,
   Coins,
+  Star,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
@@ -131,6 +132,11 @@ const navigation: NavItem[] = [
     name: "Reports",
     href: "/admin/reports",
     icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
+    name: "Reviews",
+    href: "/admin/reviews",
+    icon: <Star className="h-4 w-4" />,
   },
   {
     name: "Messages",
