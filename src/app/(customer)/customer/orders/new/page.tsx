@@ -25,7 +25,9 @@ import { getCustomerCategories, getCustomerVendors, getCustomerVendor, formatDis
 import { getAddresses, Address } from "@/lib/address";
 import { getPaymentMethods, PaymentMethod } from "@/lib/paymentMethod";
 import { createOrder, validateCoupon } from "@/lib/order";
+import { getCustomerTaxSettings } from "@/lib/feesCommissions";
 import { CustomerCategory, CustomerVendor, CustomerVendorService, CustomerVendorSubService, CreateOrderData } from "@/types/order";
+import { TaxSettings } from "@/types/feesCommissions";
 
 // Step definitions - 4 main steps, step 4 has sub-steps
 const steps = [
@@ -66,6 +68,7 @@ export default function NewOrderPage() {
   const [selectedVendorDetails, setSelectedVendorDetails] = useState<CustomerVendor | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null);
 
   // Selection states
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -96,13 +99,54 @@ export default function NewOrderPage() {
   };
 
   const getSubtotal = () => {
-    return selectedItems.reduce((sum, item) => sum + item.subService.price * item.quantity, 0);
+    return selectedItems.reduce((sum, item) => {
+      const price = typeof item.subService.price === 'string' 
+        ? parseFloat(item.subService.price) 
+        : item.subService.price;
+      return sum + price * item.quantity;
+    }, 0);
   };
 
   const getTax = () => {
+    // Use VAT from selected vendor if available, otherwise fall back to tax settings
+    const vatSettings = selectedVendorDetails?.vat || taxSettings;
+    
+    if (!vatSettings) {
+      return 0;
+    }
+    
+    // Handle both vendor vat format and taxSettings format
+    const vatEnabled = 'enabled' in vatSettings ? vatSettings.enabled : vatSettings.vat_enabled;
+    const vatRate = 'rate' in vatSettings ? vatSettings.rate : vatSettings.vat_rate;
+    
+    if (!vatEnabled) {
+      return 0;
+    }
+    
     const subtotal = getSubtotal();
     const discount = appliedCoupon?.discount || 0;
-    return Math.round((subtotal - discount) * 0.05 * 100) / 100;
+    const vatRateDecimal = vatRate / 100; // Convert from percentage (0-100) to decimal
+    return Math.round((subtotal - discount) * vatRateDecimal * 100) / 100;
+  };
+
+  const getVatSettings = () => {
+    // Use VAT from selected vendor if available, otherwise fall back to tax settings
+    const vatSettings = selectedVendorDetails?.vat || taxSettings;
+    
+    if (!vatSettings) {
+      return null;
+    }
+    
+    // Normalize to same format
+    if ('enabled' in vatSettings) {
+      return {
+        vat_enabled: vatSettings.enabled,
+        vat_rate: vatSettings.rate,
+        tax_registration_number: vatSettings.tax_registration_number || null,
+      };
+    }
+    
+    return vatSettings;
   };
 
   const getTotal = () => {
@@ -116,9 +160,10 @@ export default function NewOrderPage() {
     return selectedItems.reduce((sum, item) => sum + item.subService.duration * item.quantity, 0);
   };
 
-  // Load categories on mount
+  // Load categories and tax settings on mount
   useEffect(() => {
     loadCategories();
+    loadTaxSettings();
   }, []);
 
   // Load vendors when category is selected
@@ -153,6 +198,21 @@ export default function NewOrderPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTaxSettings = async () => {
+    try {
+      const response = await getCustomerTaxSettings();
+      setTaxSettings(response.data);
+    } catch (err) {
+      // If tax settings fail to load, use default values (VAT disabled)
+      console.error("Failed to load tax settings:", err);
+      setTaxSettings({
+        vat_enabled: false,
+        vat_rate: 5,
+        tax_registration_number: null,
+      });
     }
   };
 
@@ -557,7 +617,13 @@ export default function NewOrderPage() {
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-gray-900">{subService.name}</p>
                                   <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                                    <span>{formatCurrency(subService.price)}</span>
+                                    <span>
+                                      {formatCurrency(
+                                        typeof subService.price === 'string' 
+                                          ? parseFloat(subService.price) 
+                                          : subService.price
+                                      )}
+                                    </span>
                                     <span className="text-gray-300">|</span>
                                     <span>{subService.duration} min</span>
                                   </div>
@@ -944,7 +1010,13 @@ export default function NewOrderPage() {
                       {item.subService.name}
                       {item.quantity > 1 && <span className="text-gray-500"> x{item.quantity}</span>}
                     </span>
-                    <span className="font-medium">{formatCurrency(item.subService.price * item.quantity)}</span>
+                    <span className="font-medium">
+                      {formatCurrency(
+                        (typeof item.subService.price === 'string' 
+                          ? parseFloat(item.subService.price) 
+                          : item.subService.price) * item.quantity
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -996,10 +1068,18 @@ export default function NewOrderPage() {
                     <span>-{formatCurrency(appliedCoupon.discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">VAT (5%)</span>
-                  <span>{formatCurrency(getTax())}</span>
-                </div>
+                {(() => {
+                  const vatSettings = getVatSettings();
+                  if (vatSettings && vatSettings.vat_enabled && getTax() > 0) {
+                    return (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">VAT ({vatSettings.vat_rate}%)</span>
+                        <span>{formatCurrency(getTax())}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 <div className="flex justify-between font-medium text-base pt-2 border-t border-gray-200">
                   <span>Total</span>
                   <span>{formatCurrency(getTotal())}</span>
