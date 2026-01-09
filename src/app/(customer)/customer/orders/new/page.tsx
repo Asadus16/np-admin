@@ -17,16 +17,18 @@ import {
   Loader2,
   AlertCircle,
   Banknote,
-  Wallet,
   ChevronDown,
   ChevronUp,
+  Coins,
 } from "lucide-react";
 import { getCustomerCategories, getCustomerVendors, getCustomerVendor, formatDistance, formatPrice } from "@/lib/customerVendor";
 import { getAddresses, Address } from "@/lib/address";
 import { getPaymentMethods, PaymentMethod } from "@/lib/paymentMethod";
 import { createOrder, validateCoupon } from "@/lib/order";
+import { getCustomerPointsBalance } from "@/lib/points";
 import { getCustomerTaxSettings } from "@/lib/feesCommissions";
 import { CustomerCategory, CustomerVendor, CustomerVendorService, CustomerVendorSubService, CreateOrderData } from "@/types/order";
+import { PointsBalance } from "@/types/points";
 import { TaxSettings } from "@/types/feesCommissions";
 
 // Step definitions - 4 main steps, step 4 has sub-steps
@@ -78,14 +80,20 @@ export default function NewOrderPage() {
   const [orderType, setOrderType] = useState<"now" | "schedule" | "recurring">("schedule");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
-  const [recurringFrequency, setRecurringFrequency] = useState<"weekly" | "biweekly" | "monthly">("weekly");
-  const [paymentType, setPaymentType] = useState<"card" | "cash" | "wallet">("card");
+  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "biweekly" | "monthly">("weekly");
+  const [paymentType, setPaymentType] = useState<"card" | "cash" | "points">("card");
+  const [pointsRemainingPayment, setPointsRemainingPayment] = useState<"card" | "cash">("card");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [notes, setNotes] = useState("");
+
+  // Points redemption states
+  const [pointsBalance, setPointsBalance] = useState<PointsBalance | null>(null);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [pointsDiscount, setPointsDiscount] = useState(0);
 
   // Expanded services state for accordion
   const [expandedServices, setExpandedServices] = useState<string[]>([]);
@@ -153,7 +161,7 @@ export default function NewOrderPage() {
     const subtotal = getSubtotal();
     const discount = appliedCoupon?.discount || 0;
     const tax = getTax();
-    return subtotal - discount + tax;
+    return Math.max(0, subtotal - discount + tax - pointsDiscount);
   };
 
   const getTotalDuration = () => {
@@ -269,6 +277,15 @@ export default function NewOrderPage() {
 
       const defaultPayment = paymentResponse.data.find((p) => p.is_default);
       if (defaultPayment) setSelectedPaymentMethod(defaultPayment.id);
+
+      // Load points balance
+      try {
+        const pointsResponse = await getCustomerPointsBalance();
+        setPointsBalance(pointsResponse.data);
+      } catch (pointsErr) {
+        console.error("Failed to load points balance:", pointsErr);
+        // Don't fail the whole checkout if points fails
+      }
     } catch (err) {
       setError("Failed to load checkout data");
       console.error(err);
@@ -326,6 +343,42 @@ export default function NewOrderPage() {
     setCouponError(null);
   };
 
+  // Handle points payment selection
+  const handlePointsPaymentSelect = () => {
+    if (!pointsBalance) return;
+
+    setPaymentType("points");
+
+    // Calculate how many points to use (up to order total)
+    const subtotal = getSubtotal();
+    const discount = appliedCoupon?.discount || 0;
+    const tax = getTax();
+    const orderTotalBeforePoints = subtotal - discount + tax;
+
+    // Use all available points up to the order total
+    const pointsToUse = Math.min(pointsBalance.available_points, Math.ceil(orderTotalBeforePoints));
+    const pointsDiscountAmount = Math.min(pointsToUse, orderTotalBeforePoints);
+
+    setPointsToRedeem(pointsToUse);
+    setPointsDiscount(pointsDiscountAmount);
+  };
+
+  const handleClearPoints = () => {
+    setPointsToRedeem(0);
+    setPointsDiscount(0);
+    setPaymentType("card");
+  };
+
+  // Check if points cover full amount
+  const isFullyPaidWithPoints = () => {
+    if (!pointsBalance || paymentType !== "points") return false;
+    const subtotal = getSubtotal();
+    const discount = appliedCoupon?.discount || 0;
+    const tax = getTax();
+    const orderTotalBeforePoints = subtotal - discount + tax;
+    return pointsBalance.available_points >= orderTotalBeforePoints;
+  };
+
   const canProceed = () => {
     switch (currentStep) {
       case 1:
@@ -341,7 +394,16 @@ export default function NewOrderPage() {
           return selectedDate !== "" && selectedTime !== "";
         }
         if (checkoutSubStep === 2) {
-          return paymentType === "cash" || paymentType === "wallet" || (paymentType === "card" && selectedPaymentMethod !== null);
+          if (paymentType === "cash") return true;
+          if (paymentType === "card") return selectedPaymentMethod !== null;
+          if (paymentType === "points") {
+            // If fully paid with points, no additional payment needed
+            if (isFullyPaidWithPoints()) return true;
+            // Otherwise, need a valid remaining payment method
+            if (pointsRemainingPayment === "cash") return true;
+            if (pointsRemainingPayment === "card") return selectedPaymentMethod !== null;
+          }
+          return false;
         }
         return true;
       default:
@@ -393,6 +455,28 @@ export default function NewOrderPage() {
         scheduledTime = `${hours.toString().padStart(2, "0")}:${roundedMinutes.toString().padStart(2, "0")}`;
       }
 
+      // Determine actual payment type for the backend
+      let actualPaymentType: "card" | "cash" | "wallet" = "card";
+      let paymentMethodId: string | undefined = undefined;
+
+      if (paymentType === "points") {
+        if (isFullyPaidWithPoints()) {
+          // Fully paid with points - use card as placeholder (no charge will be made)
+          actualPaymentType = "card";
+        } else {
+          // Partial points - use remaining payment method
+          actualPaymentType = pointsRemainingPayment;
+          if (pointsRemainingPayment === "card") {
+            paymentMethodId = selectedPaymentMethod || undefined;
+          }
+        }
+      } else if (paymentType === "card") {
+        actualPaymentType = "card";
+        paymentMethodId = selectedPaymentMethod || undefined;
+      } else {
+        actualPaymentType = "cash";
+      }
+
       // Get VAT settings for the payload
       const vatSettings = getVatSettings();
       const calculatedTax = getTax();
@@ -400,8 +484,8 @@ export default function NewOrderPage() {
       const orderData: CreateOrderData = {
         vendor_id: selectedVendor,
         address_id: selectedAddress,
-        payment_type: paymentType,
-        payment_method_id: paymentType === "card" ? selectedPaymentMethod || undefined : undefined,
+        payment_type: actualPaymentType,
+        payment_method_id: paymentMethodId,
         coupon_code: appliedCoupon?.code,
         scheduled_date: scheduledDate,
         scheduled_time: scheduledTime,
@@ -410,6 +494,11 @@ export default function NewOrderPage() {
           sub_service_id: item.subService.id,
           quantity: item.quantity,
         })),
+        // Add recurring order fields if applicable
+        is_recurring: orderType === "recurring",
+        frequency_type: orderType === "recurring" ? recurringFrequency : undefined,
+        // Add points redemption
+        points_to_redeem: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       };
 
       // Add VAT information if enabled
@@ -828,8 +917,9 @@ export default function NewOrderPage() {
             {orderType === "recurring" && (
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Recurring Frequency</h2>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
+                    { id: "daily", label: "Daily", desc: "Every day" },
                     { id: "weekly", label: "Weekly", desc: "Every week" },
                     { id: "biweekly", label: "Bi-weekly", desc: "Every 2 weeks" },
                     { id: "monthly", label: "Monthly", desc: "Every month" },
@@ -861,7 +951,11 @@ export default function NewOrderPage() {
 
               <div className="space-y-3 mb-6">
                 <button
-                  onClick={() => setPaymentType("card")}
+                  onClick={() => {
+                    setPaymentType("card");
+                    setPointsToRedeem(0);
+                    setPointsDiscount(0);
+                  }}
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     paymentType === "card"
                       ? "border-gray-900 bg-gray-50"
@@ -875,7 +969,11 @@ export default function NewOrderPage() {
                 </button>
 
                 <button
-                  onClick={() => setPaymentType("cash")}
+                  onClick={() => {
+                    setPaymentType("cash");
+                    setPointsToRedeem(0);
+                    setPointsDiscount(0);
+                  }}
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     paymentType === "cash"
                       ? "border-gray-900 bg-gray-50"
@@ -888,22 +986,59 @@ export default function NewOrderPage() {
                   </div>
                 </button>
 
-                <button
-                  onClick={() => setPaymentType("wallet")}
-                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                    paymentType === "wallet"
-                      ? "border-gray-900 bg-gray-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Wallet className="h-5 w-5 text-gray-400" />
-                    <span className="font-medium text-gray-900">Pay with Wallet</span>
-                  </div>
-                </button>
+                {pointsBalance && pointsBalance.available_points > 0 && (
+                  <button
+                    onClick={handlePointsPaymentSelect}
+                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                      paymentType === "points"
+                        ? "border-gray-900 bg-gray-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Coins className="h-5 w-5 text-gray-400" />
+                        <span className="font-medium text-gray-900">Redeem Points</span>
+                      </div>
+                      <span className="text-sm text-gray-500">{pointsBalance.available_points.toLocaleString()} pts</span>
+                    </div>
+                  </button>
+                )}
               </div>
 
-              {paymentType === "card" && (
+              {/* Points remaining payment options */}
+              {paymentType === "points" && !isFullyPaidWithPoints() && (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Your points cover <span className="font-medium">{formatCurrency(pointsDiscount)}</span>.
+                    Pay remaining <span className="font-medium">{formatCurrency(getTotal())}</span> with:
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPointsRemainingPayment("card")}
+                      className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                        pointsRemainingPayment === "card"
+                          ? "border-gray-900 bg-white"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      Card
+                    </button>
+                    <button
+                      onClick={() => setPointsRemainingPayment("cash")}
+                      className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                        pointsRemainingPayment === "cash"
+                          ? "border-gray-900 bg-white"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      Cash on Delivery
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(paymentType === "card" || (paymentType === "points" && !isFullyPaidWithPoints() && pointsRemainingPayment === "card")) && (
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-3">Select a saved card</p>
                   {paymentMethods.length === 0 ? (
@@ -1056,11 +1191,21 @@ export default function NewOrderPage() {
               <div>
                 <p className="text-xs text-gray-500 mb-1">Payment</p>
                 <p className="text-sm text-gray-900">
-                  {paymentType === "card" && selectedPaymentData
-                    ? `${selectedPaymentData.brand.charAt(0).toUpperCase() + selectedPaymentData.brand.slice(1)} **** ${selectedPaymentData.last4}`
-                    : paymentType === "cash"
-                    ? "Cash on Delivery"
-                    : "Wallet"}
+                  {paymentType === "points" ? (
+                    isFullyPaidWithPoints() ? (
+                      "Fully Paid with Points"
+                    ) : (
+                      <>
+                        {pointsToRedeem.toLocaleString()} Points + {pointsRemainingPayment === "card" && selectedPaymentData
+                          ? `${selectedPaymentData.brand.charAt(0).toUpperCase() + selectedPaymentData.brand.slice(1)} **** ${selectedPaymentData.last4}`
+                          : "Cash on Delivery"}
+                      </>
+                    )
+                  ) : paymentType === "card" && selectedPaymentData ? (
+                    `${selectedPaymentData.brand.charAt(0).toUpperCase() + selectedPaymentData.brand.slice(1)} **** ${selectedPaymentData.last4}`
+                  ) : (
+                    "Cash on Delivery"
+                  )}
                 </p>
               </div>
 
@@ -1094,8 +1239,14 @@ export default function NewOrderPage() {
                   }
                   return null;
                 })()}
+                {pointsToRedeem > 0 && (
+                  <div className="flex justify-between text-sm text-amber-600">
+                    <span>Points Redeemed ({pointsToRedeem.toLocaleString()} pts)</span>
+                    <span>-{formatCurrency(pointsDiscount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-medium text-base pt-2 border-t border-gray-200">
-                  <span>Total</span>
+                  <span>Total to Pay</span>
                   <span>{formatCurrency(getTotal())}</span>
                 </div>
               </div>

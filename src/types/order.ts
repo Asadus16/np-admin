@@ -47,26 +47,54 @@ export interface OrderCoupon {
   discount: number;
 }
 
+export type TechnicianStatus =
+  | 'assigned'
+  | 'acknowledged'
+  | 'on_the_way'
+  | 'arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'pending';
+
+export interface OrderRecurringInfo {
+  id: string;
+  frequency_type: FrequencyType;
+  frequency_label: string;
+}
+
 export interface Order {
   id: string;
   order_number: string;
+  recurring_order_id?: string | null;
+  recurring_order?: OrderRecurringInfo | null;
   vendor: OrderVendor;
   technician: OrderTechnician | null;
   address: OrderAddress;
   payment_method: OrderPaymentMethod | null;
   coupon: OrderCoupon | null;
   items: OrderItem[];
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'recurring';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   payment_type: 'card' | 'cash' | 'wallet';
   subtotal: number;
   discount_amount: number;
+  points_discount: number;
+  points_redeemed: number;
+  points_earned: number;
   tax: number;
   total: number;
   scheduled_date: string;
   scheduled_time: string;
   notes: string | null;
   cancellation_reason: string | null;
+  // Technician tracking
+  technician_status: TechnicianStatus | null;
+  assigned_at: string | null;
+  acknowledged_at: string | null;
+  on_the_way_at: string | null;
+  arrived_at: string | null;
+  // Order timestamps
   confirmed_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -125,6 +153,9 @@ export interface CustomerVendorSubService {
   images: string[];
 }
 
+// Recurring order frequency type
+export type FrequencyType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+
 // Form data for creating an order
 export interface CreateOrderData {
   vendor_id: string;
@@ -139,6 +170,13 @@ export interface CreateOrderData {
     sub_service_id: string;
     quantity: number;
   }>;
+  // Recurring order fields
+  is_recurring?: boolean;
+  frequency_type?: FrequencyType;
+  frequency_interval?: number;
+  end_date?: string;
+  // Points redemption
+  points_to_redeem?: number;
   vat?: {
     enabled: boolean;
     rate: number;

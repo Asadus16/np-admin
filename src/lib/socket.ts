@@ -597,3 +597,190 @@ export const offNotification = (callback: (data: SocketNotification) => void): v
     }
   }
 };
+
+// ============================================
+// AUDIT LOG SOCKET FUNCTIONS
+// ============================================
+
+export interface SocketAuditLog {
+  id: string;
+  user_id: number | null;
+  user_type: string | null;
+  action: string;
+  entity_type: string | null;
+  entity_id: number | null;
+  entity_name: string | null;
+  old_values: Record<string, any> | null;
+  new_values: Record<string, any> | null;
+  metadata: Record<string, any> | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  user?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+}
+
+// Store audit log handlers for proper cleanup
+const auditLogHandlers = new Map<
+  (data: SocketAuditLog) => void,
+  { wrapper: (data: SocketAuditLog) => void; connectHandler?: () => void }
+>();
+
+// Store the join room handler for cleanup
+let auditLogsRoomJoinHandler: (() => void) | null = null;
+
+// Debug: enable verbose socket logging
+let debugEnabled = false;
+
+export const enableSocketDebug = (): void => {
+  if (debugEnabled) return;
+  debugEnabled = true;
+  const currentSocket = socket;
+  if (currentSocket) {
+    currentSocket.onAny((eventName, ...args) => {
+      console.log('[SOCKET DEBUG] Event received:', eventName, JSON.stringify(args));
+    });
+    console.log('[SOCKET DEBUG] Debug mode enabled - listening to all events');
+  } else {
+    console.warn('[SOCKET DEBUG] Cannot enable debug - socket is null');
+  }
+};
+
+// Helper to check socket state
+export const debugSocketState = (): void => {
+  const currentSocket = socket;
+  console.log('[SOCKET STATE] Socket exists:', !!currentSocket);
+  if (currentSocket) {
+    console.log('[SOCKET STATE] Connected:', currentSocket.connected);
+    console.log('[SOCKET STATE] Socket ID:', currentSocket.id);
+    console.log('[SOCKET STATE] Listeners for audit_log:', currentSocket.listeners('audit_log').length);
+  }
+};
+
+/**
+ * Join the admin audit logs room for real-time updates
+ */
+export const joinAuditLogsRoom = (): void => {
+  console.log('[SOCKET] joinAuditLogsRoom called');
+  const currentSocket = socket || initializeSocket();
+
+  if (!currentSocket) {
+    console.error('[SOCKET] Cannot join audit logs room - no socket');
+    return;
+  }
+
+  console.log('[SOCKET] Socket state - connected:', currentSocket.connected, 'id:', currentSocket.id);
+
+  // Function to emit join event
+  const emitJoin = () => {
+    console.log('[SOCKET] Emitting join_audit_logs, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
+    currentSocket.emit('join_audit_logs');
+    console.log('[SOCKET] Emitted join_audit_logs event');
+  };
+
+  // If connected, emit immediately
+  if (currentSocket.connected) {
+    console.log('[SOCKET] Socket already connected, joining room immediately');
+    emitJoin();
+  } else {
+    console.log('[SOCKET] Socket not connected, will join when connected');
+  }
+
+  // Remove any existing handler before adding new one
+  if (auditLogsRoomJoinHandler) {
+    currentSocket.off('connect', auditLogsRoomJoinHandler);
+  }
+
+  // Create persistent handler for reconnections
+  auditLogsRoomJoinHandler = () => {
+    console.log('[SOCKET] Connect event fired, emitting join_audit_logs');
+    currentSocket.emit('join_audit_logs');
+  };
+
+  // Always register connect handler for reconnections
+  currentSocket.on('connect', auditLogsRoomJoinHandler);
+
+  // If not connected, start connection
+  if (!currentSocket.connected) {
+    currentSocket.connect();
+    console.log('[SOCKET] Called connect()');
+  }
+};
+
+/**
+ * Leave the admin audit logs room
+ */
+export const leaveAuditLogsRoom = (): void => {
+  console.log('[SOCKET] leaveAuditLogsRoom called');
+  const currentSocket = socket;
+
+  if (currentSocket) {
+    // Remove the connect listener
+    if (auditLogsRoomJoinHandler) {
+      currentSocket.off('connect', auditLogsRoomJoinHandler);
+      auditLogsRoomJoinHandler = null;
+    }
+
+    // Leave the room if connected
+    if (currentSocket.connected) {
+      currentSocket.emit('leave_audit_logs');
+      console.log('[SOCKET] Left audit logs room');
+    }
+  }
+};
+
+/**
+ * Listen for incoming audit logs
+ */
+export const onAuditLog = (callback: (data: SocketAuditLog) => void): void => {
+  console.log('[SOCKET] onAuditLog called');
+  const currentSocket = socket || initializeSocket();
+
+  if (!currentSocket) {
+    console.error('[SOCKET] Cannot register audit log listener - no socket');
+    return;
+  }
+
+  // Create the handler function - simple wrapper
+  const auditLogHandler = (data: SocketAuditLog) => {
+    console.log('[SOCKET] >>> RECEIVED AUDIT LOG:', data);
+    console.log('[SOCKET] Calling callback with audit log');
+    try {
+      callback(data);
+      console.log('[SOCKET] Callback executed successfully');
+    } catch (err) {
+      console.error('[SOCKET] Error in audit log callback:', err);
+    }
+  };
+
+  console.log('[SOCKET] Registering audit_log listener, socket connected:', currentSocket.connected);
+
+  // Register the listener - use 'on' not 'once'
+  currentSocket.on('audit_log', auditLogHandler);
+
+  // Store for cleanup
+  auditLogHandlers.set(callback, { wrapper: auditLogHandler });
+
+  console.log('[SOCKET] Audit log listener registered, total listeners:', currentSocket.listeners('audit_log').length);
+};
+
+/**
+ * Remove audit log listener
+ */
+export const offAuditLog = (callback: (data: SocketAuditLog) => void): void => {
+  console.log('[SOCKET] offAuditLog called');
+  const currentSocket = socket;
+
+  if (currentSocket) {
+    const handlers = auditLogHandlers.get(callback);
+    if (handlers) {
+      currentSocket.off('audit_log', handlers.wrapper);
+      auditLogHandlers.delete(callback);
+      console.log('[SOCKET] Audit log listener removed, remaining listeners:', currentSocket.listeners('audit_log').length);
+    }
+  }
+};

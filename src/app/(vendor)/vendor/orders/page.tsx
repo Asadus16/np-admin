@@ -17,6 +17,8 @@ import {
   XCircle,
   Truck,
   FileCheck,
+  CalendarClock,
+  RefreshCw,
 } from "lucide-react";
 import {
   getVendorOrders,
@@ -29,7 +31,7 @@ import {
 } from "@/lib/vendorOrder";
 import { VendorOrder, VendorOrderStats } from "@/types/vendorOrder";
 
-type StatusFilter = "all" | "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+type StatusFilter = "all" | "pending" | "confirmed" | "in_progress" | "completed" | "cancelled" | "recurring";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -144,6 +146,13 @@ export default function OrdersPage() {
             Cancelled
           </span>
         );
+      case "recurring":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-800">
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Recurring
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
@@ -158,6 +167,7 @@ export default function OrdersPage() {
     { id: "pending" as const, label: "New", count: stats?.pending || 0 },
     { id: "confirmed" as const, label: "Confirmed", count: stats?.confirmed || 0 },
     { id: "in_progress" as const, label: "In Progress", count: stats?.in_progress || 0 },
+    { id: "recurring" as const, label: "Recurring", count: stats?.recurring || 0 },
     { id: "completed" as const, label: "Completed", count: stats?.completed || 0 },
     { id: "cancelled" as const, label: "Cancelled", count: stats?.cancelled || 0 },
   ];
@@ -166,6 +176,15 @@ export default function OrdersPage() {
     if (order.items.length === 0) return "No services";
     if (order.items.length === 1) return order.items[0].sub_service_name;
     return `${order.items[0].sub_service_name} +${order.items.length - 1} more`;
+  };
+
+  const isScheduledForLater = (order: VendorOrder) => {
+    if (!order.scheduled_date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledDate = new Date(order.scheduled_date);
+    scheduledDate.setHours(0, 0, 0, 0);
+    return scheduledDate > today;
   };
 
   return (
@@ -262,6 +281,17 @@ export default function OrdersPage() {
                       {order.order_number}
                     </span>
                     {getStatusBadge(order.status)}
+                    {order.recurring_order_id ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-800">
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Recurring
+                      </span>
+                    ) : isScheduledForLater(order) ? (
+                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                        <CalendarClock className="h-3 w-3 mr-1" />
+                        Scheduled
+                      </span>
+                    ) : null}
                   </div>
                   <p className="text-sm text-gray-600 mt-1">{getServiceSummary(order)}</p>
                 </div>

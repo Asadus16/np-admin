@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Upload, Mail, Phone, Globe, Loader2, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Building2, Upload, Mail, Phone, Globe, Loader2, AlertCircle, CheckCircle, Clock, Star } from "lucide-react";
 import { getMyCompany, updateMyCompany, Company, CompanyUpdateData } from "@/lib/company";
 
 interface FormData {
@@ -111,6 +111,48 @@ export default function CompanySettingsPage() {
       </div>
 
       <div className="max-w-2xl">
+        {/* Rating Card */}
+        {company && (
+          <div className="mb-4 p-4 rounded-lg border border-gray-200 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Star className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Your Rating</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= Math.round(company.rating || 0)
+                              ? "text-yellow-400 fill-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {(company.rating || 0).toFixed(1)}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      ({company.reviews_count || 0} review{(company.reviews_count || 0) !== 1 ? "s" : ""})
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <a
+                href="/vendor/reviews"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                View all &rarr;
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Verification Status Banner */}
         {company && (
           <div className={`mb-4 p-4 rounded-lg border flex items-center gap-3 ${

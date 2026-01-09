@@ -1,78 +1,83 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { RefreshCw, Calendar, ChevronRight, Pause, Play, XCircle, Clock } from "lucide-react";
-
-// Static subscriptions data
-const subscriptions = [
-  {
-    id: "SUB-001",
-    vendor: "Green Clean Services",
-    vendorLogo: "GC",
-    service: "Weekly Home Cleaning",
-    frequency: "Weekly",
-    nextDate: "Jan 2, 2025",
-    time: "9:00 AM",
-    amount: 280,
-    status: "active",
-    ordersCompleted: 12,
-    startDate: "Oct 1, 2024",
-  },
-  {
-    id: "SUB-002",
-    vendor: "Cool Air HVAC",
-    vendorLogo: "CA",
-    service: "Quarterly AC Maintenance",
-    frequency: "Every 3 months",
-    nextDate: "Jan 5, 2025",
-    time: "10:00 AM",
-    amount: 450,
-    status: "active",
-    ordersCompleted: 3,
-    startDate: "Apr 5, 2024",
-  },
-  {
-    id: "SUB-003",
-    vendor: "Pest Control Pro",
-    vendorLogo: "PC",
-    service: "Monthly Pest Treatment",
-    frequency: "Monthly",
-    nextDate: "-",
-    time: "-",
-    amount: 180,
-    status: "paused",
-    ordersCompleted: 6,
-    startDate: "Jun 15, 2024",
-  },
-  {
-    id: "SUB-004",
-    vendor: "Garden Masters",
-    vendorLogo: "GM",
-    service: "Bi-weekly Lawn Care",
-    frequency: "Every 2 weeks",
-    nextDate: "-",
-    time: "-",
-    amount: 150,
-    status: "cancelled",
-    ordersCompleted: 8,
-    startDate: "Mar 1, 2024",
-    endDate: "Nov 15, 2024",
-  },
-];
+import { RefreshCw, Calendar, ChevronRight, Pause, Play, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import {
+  getRecurringOrders,
+  getRecurringOrderStats,
+  pauseRecurringOrder,
+  resumeRecurringOrder,
+  cancelRecurringOrder,
+  formatFrequency,
+  formatDate,
+  formatCurrency,
+} from "@/lib/recurringOrder";
+import { RecurringOrder, RecurringOrderStats, RecurringOrderStatus } from "@/types/recurringOrder";
 
 export default function SubscriptionsPage() {
-  const [filter, setFilter] = useState<"all" | "active" | "paused" | "cancelled">("all");
+  const [filter, setFilter] = useState<"all" | RecurringOrderStatus>("all");
+  const [subscriptions, setSubscriptions] = useState<RecurringOrder[]>([]);
+  const [stats, setStats] = useState<RecurringOrderStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AE", {
-      style: "currency",
-      currency: "AED",
-      minimumFractionDigits: 0,
-    }).format(value);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [ordersResponse, statsResponse] = await Promise.all([
+        getRecurringOrders({ status: filter === "all" ? undefined : filter }),
+        getRecurringOrderStats(),
+      ]);
+
+      setSubscriptions(ordersResponse.data);
+      setStats(statsResponse.data);
+    } catch (err) {
+      console.error("Failed to fetch subscriptions:", err);
+      setError("Failed to load subscriptions. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getStatusBadge = (status: string) => {
+  useEffect(() => {
+    fetchData();
+  }, [filter]);
+
+  const handlePause = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      setActionLoading(id);
+      await pauseRecurringOrder(id);
+      fetchData();
+    } catch (err) {
+      console.error("Failed to pause subscription:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleResume = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    try {
+      setActionLoading(id);
+      await resumeRecurringOrder(id);
+      fetchData();
+    } catch (err) {
+      console.error("Failed to resume subscription:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getStatusBadge = (status: RecurringOrderStatus) => {
     switch (status) {
       case "active":
         return (
@@ -95,22 +100,80 @@ export default function SubscriptionsPage() {
             Cancelled
           </span>
         );
+      case "completed":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            Completed
+          </span>
+        );
       default:
         return null;
     }
   };
 
-  const filteredSubscriptions = filter === "all"
-    ? subscriptions
-    : subscriptions.filter((s) => s.status === filter);
-
-  const stats = {
-    active: subscriptions.filter((s) => s.status === "active").length,
-    paused: subscriptions.filter((s) => s.status === "paused").length,
-    monthlySpend: subscriptions
-      .filter((s) => s.status === "active")
-      .reduce((sum, s) => sum + s.amount, 0),
+  const getVendorInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
   };
+
+  const calculateMonthlySpend = () => {
+    return subscriptions
+      .filter((s) => s.status === "active")
+      .reduce((sum, s) => {
+        // Estimate monthly spend based on frequency
+        let multiplier = 1;
+        switch (s.frequency_type) {
+          case "daily":
+            multiplier = 30;
+            break;
+          case "weekly":
+            multiplier = 4;
+            break;
+          case "biweekly":
+            multiplier = 2;
+            break;
+          case "monthly":
+            multiplier = 1;
+            break;
+          default:
+            multiplier = 30 / (s.frequency_interval || 1);
+        }
+        return sum + s.total * multiplier;
+      }, 0);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-500">Loading subscriptions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <p className="text-gray-700 font-medium mb-2">Something went wrong</p>
+          <p className="text-gray-500 text-sm mb-4">{error}</p>
+          <button
+            onClick={fetchData}
+            className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -128,7 +191,7 @@ export default function SubscriptionsPage() {
               <Play className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{stats.active}</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats?.active || 0}</p>
               <p className="text-sm text-gray-500">Active Subscriptions</p>
             </div>
           </div>
@@ -139,7 +202,7 @@ export default function SubscriptionsPage() {
               <Pause className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{stats.paused}</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats?.paused || 0}</p>
               <p className="text-sm text-gray-500">Paused</p>
             </div>
           </div>
@@ -150,7 +213,7 @@ export default function SubscriptionsPage() {
               <RefreshCw className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(stats.monthlySpend)}</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(calculateMonthlySpend())}</p>
               <p className="text-sm text-gray-500">Est. Monthly Spend</p>
             </div>
           </div>
@@ -176,13 +239,18 @@ export default function SubscriptionsPage() {
 
       {/* Subscriptions List */}
       <div className="space-y-4">
-        {filteredSubscriptions.length === 0 ? (
+        {subscriptions.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
             <RefreshCw className="h-12 w-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500">No subscriptions found</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {filter === "all"
+                ? "Create a recurring order to see it here"
+                : `No ${filter} subscriptions`}
+            </p>
           </div>
         ) : (
-          filteredSubscriptions.map((sub) => (
+          subscriptions.map((sub) => (
             <Link
               key={sub.id}
               href={`/customer/subscriptions/${sub.id}`}
@@ -191,23 +259,29 @@ export default function SubscriptionsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-600">{sub.vendorLogo}</span>
+                    <span className="text-sm font-medium text-gray-600">
+                      {sub.vendor ? getVendorInitials(sub.vendor.name) : "??"}
+                    </span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{sub.service}</p>
+                      <p className="font-medium text-gray-900">
+                        {sub.items && sub.items.length > 0
+                          ? sub.items[0].service_name
+                          : "Recurring Service"}
+                      </p>
                       {getStatusBadge(sub.status)}
                     </div>
-                    <p className="text-sm text-gray-600">{sub.vendor}</p>
+                    <p className="text-sm text-gray-600">{sub.vendor?.name || "Unknown Vendor"}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                       <span className="flex items-center">
                         <RefreshCw className="h-3 w-3 mr-1" />
-                        {sub.frequency}
+                        {formatFrequency(sub)}
                       </span>
-                      {sub.status === "active" && (
+                      {sub.status === "active" && sub.next_scheduled_date && (
                         <span className="flex items-center">
                           <Calendar className="h-3 w-3 mr-1" />
-                          Next: {sub.nextDate}
+                          Next: {formatDate(sub.next_scheduled_date)}
                         </span>
                       )}
                     </div>
@@ -215,10 +289,41 @@ export default function SubscriptionsPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">{formatCurrency(sub.amount)}</p>
-                    <p className="text-xs text-gray-500">{sub.ordersCompleted} orders completed</p>
+                    <p className="font-medium text-gray-900">{formatCurrency(sub.total)}</p>
+                    <p className="text-xs text-gray-500">{sub.orders_generated} orders completed</p>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-gray-400" />
+                  {/* Quick actions */}
+                  <div className="flex items-center gap-2">
+                    {sub.status === "active" && (
+                      <button
+                        onClick={(e) => handlePause(e, sub.id)}
+                        disabled={actionLoading === sub.id}
+                        className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg disabled:opacity-50"
+                        title="Pause subscription"
+                      >
+                        {actionLoading === sub.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Pause className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                    {sub.status === "paused" && (
+                      <button
+                        onClick={(e) => handleResume(e, sub.id)}
+                        disabled={actionLoading === sub.id}
+                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50"
+                        title="Resume subscription"
+                      >
+                        {actionLoading === sub.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                    <ChevronRight className="h-5 w-5 text-gray-400" />
+                  </div>
                 </div>
               </div>
             </Link>

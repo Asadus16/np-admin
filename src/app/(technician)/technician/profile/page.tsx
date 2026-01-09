@@ -11,12 +11,13 @@ import {
   Shield,
   CheckCircle,
   Loader2,
+  Star,
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { getUserFullName } from "@/types/auth";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-import { updateUser } from "@/store/slices/authSlice";
+import { updateUser, refreshUser } from "@/store/slices/authSlice";
 
 export default function ProfilePage() {
   const dispatch = useAppDispatch();
@@ -30,6 +31,11 @@ export default function ProfilePage() {
     phone: "",
     emirates_id: "",
   });
+
+  // Refresh user data to get latest rating
+  useEffect(() => {
+    dispatch(refreshUser());
+  }, [dispatch]);
 
   useEffect(() => {
     if (user) {
@@ -150,6 +156,33 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-200 space-y-4">
+            {/* Rating */}
+            <div className="flex items-center gap-3">
+              <Star className="h-5 w-5 text-yellow-500" />
+              <div>
+                <p className="text-sm text-gray-500">Your Rating</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-4 w-4 ${
+                          star <= Math.round(user.rating || 0)
+                            ? "text-yellow-400 fill-yellow-400"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {(user.rating || 0).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    ({user.reviews_count || 0})
+                  </span>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center gap-3">
               <Building2 className="h-5 w-5 text-gray-400" />
               <div>

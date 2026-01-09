@@ -28,9 +28,11 @@ import {
   Upload,
   Trash2,
   Star,
+  CalendarClock,
+  RefreshCw,
 } from "lucide-react";
 import { ReviewModal } from "@/components/reviews/ReviewModal";
-import { createTechnicianReview, getOrderReviews } from "@/lib/review";
+import { createTechnicianReview, getTechnicianJobReviews } from "@/lib/review";
 import { Review } from "@/types/review";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -87,7 +89,7 @@ export default function JobDetailPage() {
       if (!job || job.technician_status !== "completed") return;
 
       try {
-        const reviews = await getOrderReviews(job.id);
+        const reviews = await getTechnicianJobReviews(job.id);
         const technicianReview = reviews.find(
           (r) => r.type === "technician_to_customer"
         );
@@ -142,6 +144,15 @@ export default function JobDetailPage() {
       default:
         return status;
     }
+  };
+
+  const isScheduledForLater = () => {
+    if (!job?.scheduled_date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledDate = new Date(job.scheduled_date);
+    scheduledDate.setHours(0, 0, 0, 0);
+    return scheduledDate > today;
   };
 
   const handleAction = async () => {
@@ -303,11 +314,22 @@ export default function JobDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-semibold text-gray-900">{job.order_number}</h1>
               <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(job.technician_status)}`}>
                 {getStatusLabel(job.technician_status)}
               </span>
+              {job.recurring_order_id ? (
+                <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-800">
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Recurring
+                </span>
+              ) : isScheduledForLater() ? (
+                <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                  <CalendarClock className="h-3 w-3 mr-1" />
+                  Scheduled
+                </span>
+              ) : null}
             </div>
             <p className="text-sm text-gray-500 mt-1">{formatCurrency(job.total)}</p>
           </div>
@@ -563,6 +585,22 @@ export default function JobDetailPage() {
               Duration: {job.total_duration_minutes} mins
             </div>
           </div>
+
+          {/* Recurring Plan Info */}
+          {job.recurring_order_id && (
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <RefreshCw className="h-5 w-5 text-cyan-600" />
+                <h3 className="text-sm font-medium text-cyan-900">Recurring Job</h3>
+              </div>
+              <p className="text-sm text-cyan-800">
+                {job.recurring_order?.frequency_label || "This is a recurring appointment"}
+              </p>
+              <p className="text-xs text-cyan-600 mt-2">
+                This job is part of a recurring subscription. You may receive similar jobs on the same schedule.
+              </p>
+            </div>
+          )}
 
           {/* Company/Vendor */}
           {job.company && (

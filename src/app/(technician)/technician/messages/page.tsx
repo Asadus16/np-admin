@@ -13,7 +13,7 @@ export default function MessagesPage() {
           </p>
         </div>
       </div>
-      <MessagesInbox />
+      <MessagesInbox showNewConversation={true} />
     </div>
   );
 }

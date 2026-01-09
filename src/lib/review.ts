@@ -216,6 +216,23 @@ export async function createTechnicianReview(data: CreateReviewData): Promise<Re
   return result.data;
 }
 
+/**
+ * Get reviews for a specific job (technician)
+ */
+export async function getTechnicianJobReviews(jobId: string): Promise<Review[]> {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const response = await fetch(`${API_BASE_URL}/technician/jobs/${jobId}/reviews`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const result = await handleResponse<{ data: Review[] }>(response);
+  return result.data;
+}
+
 // ============ Admin Review Functions ============
 
 /**

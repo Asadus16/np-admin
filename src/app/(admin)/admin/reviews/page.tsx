@@ -140,7 +140,7 @@ export default function AdminReviewsPage() {
               <span className="text-sm text-gray-500">Vendor Reviews</span>
             </div>
             <p className="text-2xl font-semibold text-gray-900">
-              {stats.by_type?.customer_to_vendor || 0}
+              {stats.by_type?.customer_to_vendor?.count || 0}
             </p>
           </div>
 
@@ -152,7 +152,7 @@ export default function AdminReviewsPage() {
               <span className="text-sm text-gray-500">Technician Reviews</span>
             </div>
             <p className="text-2xl font-semibold text-gray-900">
-              {stats.by_type?.customer_to_technician || 0}
+              {stats.by_type?.customer_to_technician?.count || 0}
             </p>
           </div>
         </div>

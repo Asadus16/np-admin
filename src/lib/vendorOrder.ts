@@ -260,6 +260,7 @@ export function getOrderStatusDisplay(status: string): { label: string; color: s
     in_progress: { label: 'In Progress', color: 'bg-purple-100 text-purple-800' },
     completed: { label: 'Completed', color: 'bg-green-100 text-green-800' },
     cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800' },
+    recurring: { label: 'Recurring', color: 'bg-cyan-100 text-cyan-800' },
   };
 
   return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };

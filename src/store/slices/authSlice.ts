@@ -5,6 +5,7 @@ import {
   apiRegister,
   apiLogout,
   apiLoginWithPhone,
+  apiGetMe,
   saveAuthToStorage,
   getAuthFromStorage,
   clearAuthFromStorage,
@@ -107,6 +108,33 @@ export const initializeAuth = createAsyncThunk(
       return { user: stored.user, token: stored.token };
     }
     return null;
+  }
+);
+
+export const refreshUser = createAsyncThunk(
+  'auth/refreshUser',
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const state = getState() as { auth: AuthState };
+      if (!state.auth.token) {
+        return rejectWithValue({ message: 'Not authenticated' } as SerializedApiError);
+      }
+      const response = await apiGetMe(state.auth.token);
+      saveAuthToStorage(response.user, state.auth.token);
+      return { user: response.user };
+    } catch (error) {
+      if (error instanceof ApiException) {
+        return rejectWithValue({
+          message: error.message,
+          status: error.status,
+          errors: error.errors,
+        } as SerializedApiError);
+      }
+      if (error instanceof Error) {
+        return rejectWithValue({ message: error.message } as SerializedApiError);
+      }
+      return rejectWithValue({ message: 'Failed to refresh user' } as SerializedApiError);
+    }
   }
 );
 
@@ -248,6 +276,12 @@ const authSlice = createSlice({
       })
       .addCase(initializeAuth.rejected, (state) => {
         state.isLoading = false;
+      });
+
+    // Refresh User
+    builder
+      .addCase(refreshUser.fulfilled, (state, action) => {
+        state.user = action.payload.user;
       });
 
     // Send Phone OTP

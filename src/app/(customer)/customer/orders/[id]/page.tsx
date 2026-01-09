@@ -25,6 +25,10 @@ import {
   CreditCard,
   Banknote,
   Wallet,
+  Car,
+  MapPinned,
+  Wrench,
+  CircleDot,
 } from "lucide-react";
 import { getOrder, cancelOrder } from "@/lib/order";
 import { Order } from "@/types/order";
@@ -344,6 +348,74 @@ export default function OrderDetailsPage() {
     return order.status === "pending" || order.status === "confirmed";
   };
 
+  const getTechnicianStatusInfo = () => {
+    if (!order?.technician || !order?.technician_status) return null;
+
+    const statusMap = {
+      assigned: {
+        label: "Technician Assigned",
+        description: "Your technician has been assigned and will accept the job soon",
+        icon: User,
+        color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+        iconColor: "text-yellow-600",
+        step: 1,
+      },
+      acknowledged: {
+        label: "Job Accepted",
+        description: "Your technician has accepted the job and will be on their way soon",
+        icon: CheckCircle,
+        color: "bg-blue-100 text-blue-800 border-blue-200",
+        iconColor: "text-blue-600",
+        step: 2,
+      },
+      on_the_way: {
+        label: "On The Way",
+        description: "Your technician is on the way to your location",
+        icon: Car,
+        color: "bg-orange-100 text-orange-800 border-orange-200",
+        iconColor: "text-orange-600",
+        step: 3,
+      },
+      arrived: {
+        label: "Technician Arrived",
+        description: "Your technician has arrived at your location",
+        icon: MapPinned,
+        color: "bg-purple-100 text-purple-800 border-purple-200",
+        iconColor: "text-purple-600",
+        step: 4,
+      },
+      in_progress: {
+        label: "Work In Progress",
+        description: "Your technician is currently working on the job",
+        icon: Wrench,
+        color: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        iconColor: "text-indigo-600",
+        step: 5,
+      },
+      completed: {
+        label: "Job Completed",
+        description: "The service has been completed successfully",
+        icon: CheckCircle,
+        color: "bg-green-100 text-green-800 border-green-200",
+        iconColor: "text-green-600",
+        step: 6,
+      },
+    };
+
+    return statusMap[order.technician_status as keyof typeof statusMap] || null;
+  };
+
+  const shouldShowTechnicianTracking = () => {
+    if (!order) return false;
+    // Show tracking when technician is assigned and order is not cancelled/completed
+    return (
+      order.technician &&
+      order.technician_status &&
+      order.status !== "cancelled" &&
+      order.status !== "completed"
+    );
+  };
+
   const handleSubmitReview = async (rating: number, comment: string) => {
     if (!currentReviewType || !order) return;
 
@@ -448,6 +520,82 @@ export default function OrderDetailsPage() {
           </p>
         </div>
       </div>
+
+      {/* Technician Tracking Card - Show prominently when technician is assigned */}
+      {shouldShowTechnicianTracking() && order.technician && (
+        <div className={`border rounded-lg p-4 ${getTechnicianStatusInfo()?.color || 'bg-gray-100 border-gray-200'}`}>
+          <div className="flex items-start gap-4">
+            <div className={`p-3 rounded-full bg-white/80 ${getTechnicianStatusInfo()?.iconColor || 'text-gray-600'}`}>
+              {getTechnicianStatusInfo()?.icon && (
+                <span>
+                  {(() => {
+                    const IconComponent = getTechnicianStatusInfo()!.icon;
+                    return <IconComponent className="h-6 w-6" />;
+                  })()}
+                </span>
+              )}
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg">
+                {getTechnicianStatusInfo()?.label}
+              </h3>
+              <p className="text-sm opacity-80 mt-1">
+                {getTechnicianStatusInfo()?.description}
+              </p>
+              <div className="flex items-center gap-4 mt-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm font-medium">{order.technician.name}</span>
+                </div>
+                {order.technician.phone && (
+                  <a
+                    href={`tel:${order.technician.phone}`}
+                    className="flex items-center gap-2 text-sm hover:underline"
+                  >
+                    <Phone className="h-4 w-4" />
+                    Call
+                  </a>
+                )}
+                <button
+                  onClick={handleChatWithTechnician}
+                  className="flex items-center gap-2 text-sm hover:underline"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Chat
+                </button>
+              </div>
+            </div>
+          </div>
+          {/* Progress Steps */}
+          <div className="mt-4 pt-4 border-t border-current/20">
+            <div className="flex items-center justify-between">
+              {["Assigned", "Accepted", "On the Way", "Arrived", "Working"].map((step, idx) => {
+                const currentStep = getTechnicianStatusInfo()?.step || 0;
+                const isCompleted = idx + 1 < currentStep;
+                const isCurrent = idx + 1 === currentStep;
+                return (
+                  <div key={step} className="flex flex-col items-center flex-1">
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        isCompleted
+                          ? "bg-white text-current"
+                          : isCurrent
+                          ? "bg-white text-current ring-2 ring-white"
+                          : "bg-current/20 text-current/60"
+                      }`}
+                    >
+                      {isCompleted ? <CheckCircle className="h-4 w-4" /> : idx + 1}
+                    </div>
+                    <span className={`text-xs mt-1 hidden sm:block ${isCurrent ? 'font-medium' : 'opacity-60'}`}>
+                      {step}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}

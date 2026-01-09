@@ -94,13 +94,13 @@ export default function ReviewsPage() {
                         className="bg-yellow-400 h-2 rounded-full"
                         style={{
                           width: stats.total_reviews > 0
-                            ? `${(stats.rating_breakdown[rating] / stats.total_reviews) * 100}%`
+                            ? `${((stats.breakdown[rating] || 0) / stats.total_reviews) * 100}%`
                             : "0%",
                         }}
                       />
                     </div>
                     <span className="text-xs text-gray-500 w-6">
-                      {stats.rating_breakdown[rating]}
+                      {stats.breakdown[rating] || 0}
                     </span>
                   </div>
                 ))}
@@ -116,7 +116,7 @@ export default function ReviewsPage() {
               <span className="text-sm text-gray-500">5 Star Reviews</span>
             </div>
             <p className="text-2xl font-semibold text-gray-900">
-              {stats.rating_breakdown[5]}
+              {stats.breakdown[5] || 0}
             </p>
           </div>
 
