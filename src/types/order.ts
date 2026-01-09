@@ -139,6 +139,12 @@ export interface CreateOrderData {
     sub_service_id: string;
     quantity: number;
   }>;
+  vat?: {
+    enabled: boolean;
+    rate: number;
+    tax_registration_number?: string | null;
+    amount?: number; // Calculated VAT amount
+  };
 }
 
 // API Responses

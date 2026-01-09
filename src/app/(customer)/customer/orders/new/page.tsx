@@ -393,6 +393,10 @@ export default function NewOrderPage() {
         scheduledTime = `${hours.toString().padStart(2, "0")}:${roundedMinutes.toString().padStart(2, "0")}`;
       }
 
+      // Get VAT settings for the payload
+      const vatSettings = getVatSettings();
+      const calculatedTax = getTax();
+
       const orderData: CreateOrderData = {
         vendor_id: selectedVendor,
         address_id: selectedAddress,
@@ -407,6 +411,16 @@ export default function NewOrderPage() {
           quantity: item.quantity,
         })),
       };
+
+      // Add VAT information if enabled
+      if (vatSettings && vatSettings.vat_enabled) {
+        orderData.vat = {
+          enabled: vatSettings.vat_enabled,
+          rate: vatSettings.vat_rate,
+          tax_registration_number: vatSettings.tax_registration_number || null,
+          amount: calculatedTax,
+        };
+      }
 
       const response = await createOrder(orderData);
       router.push(`/customer/orders/${response.data.id}`);
