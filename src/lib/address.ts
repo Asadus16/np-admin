@@ -11,6 +11,12 @@ export interface Address {
   apartment: string | null;
   city: string;
   emirate: string;
+  service_area_id?: string | null;
+  service_area?: {
+    id: string;
+    slug: string;
+    name: string;
+  } | null;
   latitude: number | null;
   longitude: number | null;
   is_primary: boolean;
@@ -25,6 +31,7 @@ export interface AddressFormData {
   apartment?: string;
   city: string;
   emirate: string;
+  service_area_id?: string;
   latitude?: number | null;
   longitude?: number | null;
   is_primary?: boolean;

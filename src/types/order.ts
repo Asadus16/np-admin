@@ -112,6 +112,7 @@ export interface CustomerVendor {
   category: {
     id: string;
     name: string;
+    commission_rate?: string;
   } | null;
   service_areas: Array<{
     id: string;
@@ -129,6 +130,11 @@ export interface CustomerVendor {
   starting_price: number | null;
   response_time: string;
   available: boolean;
+  vat?: {
+    enabled: boolean;
+    rate: number;
+    tax_registration_number: string | null;
+  };
 }
 
 export interface CustomerVendorService {
@@ -142,7 +148,7 @@ export interface CustomerVendorService {
 export interface CustomerVendorSubService {
   id: string;
   name: string;
-  price: number;
+  price: number | string; // API returns as string, but we'll convert to number for calculations
   duration: number;
   images: string[];
 }
@@ -171,6 +177,12 @@ export interface CreateOrderData {
   end_date?: string;
   // Points redemption
   points_to_redeem?: number;
+  vat?: {
+    enabled: boolean;
+    rate: number;
+    tax_registration_number?: string | null;
+    amount?: number; // Calculated VAT amount
+  };
 }
 
 // API Responses

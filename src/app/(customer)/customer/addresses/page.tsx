@@ -12,6 +12,8 @@ import {
   Address,
   AddressFormData,
 } from "@/lib/address";
+import { getPublicServiceAreas } from "@/lib/serviceArea";
+import type { ServiceArea } from "@/types/serviceArea";
 
 const LocationPicker = dynamic(
   () => import("@/components/maps/LocationPicker"),
@@ -42,6 +44,8 @@ export default function AddressesPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+  const [serviceAreasLoading, setServiceAreasLoading] = useState(false);
   const [formData, setFormData] = useState<AddressFormData>({
     label: "Home",
     street_address: "",
@@ -49,6 +53,7 @@ export default function AddressesPage() {
     apartment: "",
     city: "",
     emirate: "Dubai",
+    service_area_id: "",
     latitude: null,
     longitude: null,
     is_primary: false,
@@ -56,7 +61,42 @@ export default function AddressesPage() {
 
   useEffect(() => {
     fetchAddresses();
+    fetchServiceAreas();
   }, []);
+
+  const fetchServiceAreas = async () => {
+    try {
+      setServiceAreasLoading(true);
+      let allServiceAreas: ServiceArea[] = [];
+      let currentPage = 1;
+      let hasMorePages = true;
+
+      // Fetch all pages of service areas
+      while (hasMorePages) {
+        const response = await getPublicServiceAreas(currentPage);
+        if (response.data && response.data.length > 0) {
+          allServiceAreas = [...allServiceAreas, ...response.data];
+          
+          // Check if there are more pages
+          if (response.meta && currentPage < response.meta.last_page) {
+            currentPage++;
+          } else {
+            hasMorePages = false;
+          }
+        } else {
+          hasMorePages = false;
+        }
+      }
+
+      setServiceAreas(allServiceAreas);
+      console.log("Service areas fetched:", allServiceAreas.length);
+    } catch (err) {
+      console.error("Error fetching service areas:", err);
+      setError("Failed to load service areas. Please refresh the page.");
+    } finally {
+      setServiceAreasLoading(false);
+    }
+  };
 
   const fetchAddresses = async () => {
     try {
@@ -106,7 +146,35 @@ export default function AddressesPage() {
     }
   };
 
-  const handleEdit = (address: Address) => {
+  const handleEdit = async (address: Address) => {
+    // Ensure service areas are loaded before editing
+    if (serviceAreas.length === 0 && !serviceAreasLoading) {
+      await fetchServiceAreas();
+    }
+
+    // Match service area by slug since IDs are hashed and don't match
+    let serviceAreaId = "";
+    
+    // Get the slug from the address response
+    // Check multiple possible locations for the slug
+    const addressServiceAreaSlug = 
+      address.service_area?.slug || 
+      (address as any).service_area_slug ||
+      (address as any).service_area?.slug;
+    
+    if (addressServiceAreaSlug) {
+      // Find the service area in the list by matching slug
+      const matchedServiceArea = serviceAreas.find(area => area.slug === addressServiceAreaSlug);
+      if (matchedServiceArea) {
+        serviceAreaId = matchedServiceArea.id;
+        console.log("Matched service area by slug:", addressServiceAreaSlug, "Found ID:", matchedServiceArea.id, "Name:", matchedServiceArea.name);
+      } else {
+        console.warn("Service area with slug not found in list:", addressServiceAreaSlug, "Available slugs:", serviceAreas.map(a => a.slug));
+      }
+    } else {
+      console.warn("No service area slug found in address response. Address:", address);
+    }
+
     setFormData({
       label: address.label,
       street_address: address.street_address,
@@ -114,6 +182,7 @@ export default function AddressesPage() {
       apartment: address.apartment || "",
       city: address.city,
       emirate: address.emirate,
+      service_area_id: serviceAreaId,
       latitude: address.latitude,
       longitude: address.longitude,
       is_primary: address.is_primary,
@@ -152,6 +221,7 @@ export default function AddressesPage() {
       apartment: "",
       city: "",
       emirate: "Dubai",
+      service_area_id: "",
       latitude: null,
       longitude: null,
       is_primary: false,
@@ -240,6 +310,28 @@ export default function AddressesPage() {
                   <option key={em} value={em}>{em}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Service Area</label>
+              {serviceAreasLoading ? (
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  <p className="text-sm text-gray-500">Loading service areas...</p>
+                </div>
+              ) : (
+                <select
+                  name="service_area_id"
+                  value={formData.service_area_id || ""}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                >
+                  <option value="">Select service area</option>
+                  {serviceAreas.map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
