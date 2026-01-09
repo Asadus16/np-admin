@@ -94,6 +94,11 @@ export default function SchedulingPage() {
     return schedule.orders.filter((job) => job.scheduled_date === date);
   };
 
+  const getRecurringJobsForDate = (date: string): TechnicianJob[] => {
+    if (!schedule?.orders) return [];
+    return schedule.orders.filter((job) => job.scheduled_date === date && job.recurring_order_id);
+  };
+
   const isBlocked = (date: string) => {
     if (!schedule?.unavailable_days) return false;
     return schedule.unavailable_days.some((d) => d.date === date);
@@ -274,6 +279,7 @@ export default function SchedulingPage() {
                 const day = i + 1;
                 const date = formatCalendarDate(day);
                 const jobsOnDay = getJobsForDate(date);
+                const recurringJobsOnDay = getRecurringJobsForDate(date);
                 const blocked = isBlocked(date);
 
                 return (
@@ -298,9 +304,9 @@ export default function SchedulingPage() {
                       {day}
                     </span>
                     {jobsOnDay.length > 0 && (
-                      <div className="mt-1">
+                      <div className="mt-1 space-y-0.5">
                         <span
-                          className={`text-xs px-1.5 py-0.5 rounded ${
+                          className={`text-xs px-1.5 py-0.5 rounded block ${
                             selectedDate === date
                               ? "bg-white/20"
                               : "bg-blue-100 text-blue-700"
@@ -308,6 +314,17 @@ export default function SchedulingPage() {
                         >
                           {jobsOnDay.length} job{jobsOnDay.length > 1 ? "s" : ""}
                         </span>
+                        {recurringJobsOnDay.length > 0 && (
+                          <span
+                            className={`text-xs px-1.5 py-0.5 rounded block ${
+                              selectedDate === date
+                                ? "bg-cyan-400/30"
+                                : "bg-cyan-100 text-cyan-700"
+                            }`}
+                          >
+                            {recurringJobsOnDay.length} recurring
+                          </span>
+                        )}
                       </div>
                     )}
                     {blocked && (
@@ -396,13 +413,21 @@ export default function SchedulingPage() {
                         {formatTime(job.scheduled_time)}
                       </span>
                     </div>
-                    <span
-                      className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
-                        job.technician_status
-                      )}`}
-                    >
-                      {getStatusLabel(job.technician_status)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {job.recurring_order_id && (
+                        <span className="px-2 py-0.5 text-xs font-medium rounded bg-cyan-100 text-cyan-700 flex items-center gap-1">
+                          <RefreshCw className="h-3 w-3" />
+                          Recurring
+                        </span>
+                      )}
+                      <span
+                        className={`px-2 py-0.5 text-xs font-medium rounded ${getStatusColor(
+                          job.technician_status
+                        )}`}
+                      >
+                        {getStatusLabel(job.technician_status)}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-sm text-gray-900 mb-1">
                     {job.customer.name}
@@ -472,6 +497,10 @@ export default function SchedulingPage() {
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-100 rounded" />
             <span className="text-sm text-gray-600">Jobs scheduled</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-cyan-100 rounded" />
+            <span className="text-sm text-gray-600">Recurring jobs</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-red-50 border border-red-200 rounded" />

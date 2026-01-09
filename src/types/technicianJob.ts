@@ -67,10 +67,20 @@ export interface TechnicianJobEvidence {
   created_at: string;
 }
 
+export type FrequencyType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+
+export interface TechnicianJobRecurringInfo {
+  id: string;
+  frequency_type: FrequencyType;
+  frequency_label: string;
+}
+
 export interface TechnicianJob {
   id: string;
   order_number: string;
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  recurring_order_id?: string | null;
+  recurring_order?: TechnicianJobRecurringInfo | null;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'recurring';
   technician_status: TechnicianStatus;
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   payment_type: 'card' | 'cash' | 'wallet';

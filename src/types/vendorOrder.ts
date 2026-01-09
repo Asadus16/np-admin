@@ -64,7 +64,8 @@ export interface VendorOrderNote {
 export interface VendorOrder {
   id: string;
   order_number: string;
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  recurring_order_id?: string | null;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'recurring';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
   payment_type: 'card' | 'cash' | 'wallet';
   subtotal: number;
@@ -99,6 +100,7 @@ export interface VendorOrderStats {
   in_progress: number;
   completed: number;
   cancelled: number;
+  recurring: number;
 }
 
 // API Responses

@@ -136,15 +136,9 @@ export function VendorSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Vend
     });
   }, [pathname]);
 
-  // Fetch unread count on mount and poll every 30 seconds
+  // Fetch unread count on mount (WebSocket handles real-time updates)
   useEffect(() => {
     dispatch(fetchUnreadCount());
-
-    const interval = setInterval(() => {
-      dispatch(fetchUnreadCount());
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, [dispatch]);
 
   const toggleExpand = (name: string) => {

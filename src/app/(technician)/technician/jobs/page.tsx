@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ClipboardList,
   XCircle,
+  CalendarClock,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -73,6 +74,15 @@ export default function JobsPage() {
     if (job.items.length === 0) return "No services";
     if (job.items.length === 1) return job.items[0].sub_service_name;
     return `${job.items[0].sub_service_name} +${job.items.length - 1} more`;
+  };
+
+  const isScheduledForLater = (job: TechnicianJob) => {
+    if (!job.scheduled_date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledDate = new Date(job.scheduled_date);
+    scheduledDate.setHours(0, 0, 0, 0);
+    return scheduledDate > today;
   };
 
   const getStatusColor = (status: TechnicianStatus) => {
@@ -270,6 +280,7 @@ export default function JobsPage() {
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="in_progress">In Progress</option>
+                <option value="recurring">Recurring</option>
                 <option value="completed">Completed</option>
               </select>
             </div>
@@ -301,7 +312,7 @@ export default function JobsPage() {
               <div key={job.id} className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-sm font-medium text-gray-900">
                         {job.customer.name}
                       </span>
@@ -312,6 +323,17 @@ export default function JobsPage() {
                       >
                         {getStatusLabel(job.technician_status)}
                       </span>
+                      {job.recurring_order_id ? (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-800">
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Recurring
+                        </span>
+                      ) : isScheduledForLater(job) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                          <CalendarClock className="h-3 w-3 mr-1" />
+                          Scheduled
+                        </span>
+                      ) : null}
                     </div>
                     <p className="text-sm text-gray-600">{getServiceSummary(job)}</p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -381,7 +403,7 @@ export default function JobsPage() {
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="text-sm font-medium text-gray-900">
                         {job.customer.name}
                       </span>
@@ -389,6 +411,17 @@ export default function JobsPage() {
                         <CheckCircle2 className="h-3 w-3 inline mr-1" />
                         Completed
                       </span>
+                      {job.recurring_order_id ? (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-cyan-100 text-cyan-800">
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Recurring
+                        </span>
+                      ) : isScheduledForLater(job) ? (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                          <CalendarClock className="h-3 w-3 mr-1" />
+                          Scheduled
+                        </span>
+                      ) : null}
                     </div>
                     <p className="text-sm text-gray-600">{getServiceSummary(job)}</p>
                   </div>

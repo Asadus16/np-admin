@@ -15,6 +15,11 @@ import {
   AlertCircle,
   FileCheck,
   ChevronLeft,
+  Car,
+  MapPinned,
+  Wrench,
+  User,
+  RefreshCw,
 } from "lucide-react";
 import { getOrders } from "@/lib/order";
 import { Order } from "@/types/order";
@@ -162,6 +167,59 @@ export default function OrderHistoryPage() {
     return `${order.items[0].sub_service_name} +${order.items.length - 1} more`;
   };
 
+  const getTechnicianStatusBadge = (order: Order) => {
+    if (!order.technician_status || order.status === "completed" || order.status === "cancelled") {
+      return null;
+    }
+
+    switch (order.technician_status) {
+      case "on_the_way":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            <Car className="h-3 w-3 mr-1" />
+            On the Way
+          </span>
+        );
+      case "arrived":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+            <MapPinned className="h-3 w-3 mr-1" />
+            Arrived
+          </span>
+        );
+      case "in_progress":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <Wrench className="h-3 w-3 mr-1" />
+            Working
+          </span>
+        );
+      case "assigned":
+      case "acknowledged":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <User className="h-3 w-3 mr-1" />
+            Tech Assigned
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getRecurringBadge = (order: Order) => {
+    if (!order.recurring_order_id) return null;
+
+    const frequencyLabel = order.recurring_order?.frequency_label || "Recurring";
+
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800">
+        <RefreshCw className="h-3 w-3 mr-1" />
+        {frequencyLabel}
+      </span>
+    );
+  };
+
   // Client-side search filter
   const filteredOrders = orders.filter((order) => {
     if (!searchQuery) return true;
@@ -303,6 +361,8 @@ export default function OrderHistoryPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium text-gray-900">{order.order_number}</p>
                     {getStatusBadge(order.status)}
+                    {getTechnicianStatusBadge(order)}
+                    {getRecurringBadge(order)}
                   </div>
                   <p className="text-sm text-gray-600 truncate">{order.vendor.name}</p>
                   <p className="text-xs text-gray-500 truncate">{getServiceSummary(order)}</p>

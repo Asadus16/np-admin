@@ -17,6 +17,7 @@ import {
   Ban,
   UserCheck,
   Loader2,
+  Star,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,6 +64,8 @@ interface Customer {
   payment_methods_count: number;
   orders_count: number;
   total_spent: string;
+  rating: number;
+  reviews_count: number;
 }
 
 export default function CustomerDetailPage() {
@@ -399,6 +402,29 @@ export default function CustomerDetailPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Total Spent</span>
                 <span className="text-sm font-medium text-gray-900">{customer.total_spent}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Rating</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star
+                        key={star}
+                        className={`h-3.5 w-3.5 ${
+                          star <= Math.round(customer.rating || 0)
+                            ? "text-yellow-400 fill-yellow-400"
+                            : "text-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {(customer.rating || 0).toFixed(1)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    ({customer.reviews_count || 0})
+                  </span>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Saved Addresses</span>

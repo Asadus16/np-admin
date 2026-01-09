@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2, Wrench, Navigation } from "lucide-react";
+import { ArrowLeft, Edit, MapPin, Phone, Mail, Calendar, Building2, Globe, FileText, Loader2, AlertCircle, CheckCircle, Clock, Trash2, Wrench, Navigation, Star } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchCompany, deleteCompany, clearCurrentCompany, clearError } from "@/store/slices/companySlice";
 
@@ -306,6 +306,30 @@ export default function VendorDetailPage() {
                 <span className="text-sm font-medium text-amber-700">Pending Approval</span>
               </div>
             )}
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Rating</h2>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-5 w-5 ${
+                      star <= Math.round(vendor.rating || 0)
+                        ? "text-yellow-400 fill-yellow-400"
+                        : "text-gray-300"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-lg font-semibold text-gray-900">
+                {(vendor.rating || 0).toFixed(1)}
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 mt-2">
+              Based on {vendor.reviews_count || 0} review{(vendor.reviews_count || 0) !== 1 ? "s" : ""}
+            </p>
           </div>
 
           <div className="bg-white border border-gray-200 rounded-lg p-6">

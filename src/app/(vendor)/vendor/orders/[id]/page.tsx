@@ -30,6 +30,7 @@ import {
   FileCheck,
   Banknote,
   MessageSquare,
+  CalendarClock,
 } from "lucide-react";
 import {
   getVendorOrder,
@@ -236,6 +237,15 @@ export default function OrderDetailPage() {
     return timeline;
   };
 
+  const isScheduledForLater = (order: VendorOrder) => {
+    if (!order.scheduled_date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledDate = new Date(order.scheduled_date);
+    scheduledDate.setHours(0, 0, 0, 0);
+    return scheduledDate > today;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -345,6 +355,12 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-semibold text-gray-900">{order.order_number}</h1>
             {getStatusBadge(order.status)}
+            {isScheduledForLater(order) && (
+              <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">
+                <CalendarClock className="h-3 w-3 mr-1" />
+                Scheduled
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {order.items.length > 0 ? order.items[0].service_name : "Service Order"}

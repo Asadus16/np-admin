@@ -57,6 +57,8 @@ export interface Company {
   approved: boolean;
   bank_details: BankDetails | null;
   services?: CompanyService[];
+  rating: number;
+  reviews_count: number;
   created_at: string;
   updated_at: string;
 }

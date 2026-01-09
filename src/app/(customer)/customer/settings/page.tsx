@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { User, Mail, Phone, CreditCard, Shield, Save, Upload, Loader2, AlertCircle, X, CheckCircle, MapPin } from "lucide-react";
+import { User, Mail, Phone, CreditCard, Shield, Save, Upload, Loader2, AlertCircle, X, CheckCircle, MapPin, Star } from "lucide-react";
 import { getProfile, updateProfile, uploadEmiratesId, ProfileUpdateData } from "@/lib/profile";
 
 const nationalities = [
@@ -49,6 +49,8 @@ export default function CustomerSettingsPage() {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [emiratesIdVerified, setEmiratesIdVerified] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [reviewsCount, setReviewsCount] = useState(0);
 
   // Emirates ID upload refs
   const frontInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +82,8 @@ export default function CustomerSettingsPage() {
       setPhoneVerified(!!user.phone_verified_at);
       setEmailVerified(!!user.email_verified_at);
       setEmiratesIdVerified(!!user.emirates_id);
+      setRating(user.rating || 0);
+      setReviewsCount(user.reviews_count || 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load profile");
     } finally {
@@ -249,6 +253,44 @@ export default function CustomerSettingsPage() {
           </button>
         </div>
       )}
+
+      {/* Rating Card */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Star className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Your Rating</p>
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`h-4 w-4 ${
+                        star <= Math.round(rating)
+                          ? "text-yellow-400 fill-yellow-400"
+                          : "text-gray-300"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm font-medium text-gray-900">{rating.toFixed(1)}</span>
+                <span className="text-sm text-gray-500">
+                  ({reviewsCount} review{reviewsCount !== 1 ? "s" : ""} from technicians)
+                </span>
+              </div>
+            </div>
+          </div>
+          <a
+            href="/customer/reviews"
+            className="text-sm text-gray-600 hover:text-gray-900"
+          >
+            View all &rarr;
+          </a>
+        </div>
+      </div>
 
       {/* Profile Photo */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">

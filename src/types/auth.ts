@@ -33,6 +33,9 @@ export interface User {
   // Customer-specific fields
   nationality?: string;
   addresses?: CustomerAddress[];
+  // Rating fields (for technicians and customers)
+  rating?: number;
+  reviews_count?: number;
 }
 
 export interface CustomerAddress {
