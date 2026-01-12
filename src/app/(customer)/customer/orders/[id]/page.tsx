@@ -37,6 +37,7 @@ import { startOrGetConversation, sendMessage } from "@/store/slices/chatSlice";
 import { ReviewModal } from "@/components/reviews/ReviewModal";
 import { canReviewOrder, createReview, getOrderReviews } from "@/lib/review";
 import { ReviewType, Review } from "@/types/review";
+import { RefundRequestModal } from "@/components/refund/RefundRequestModal";
 
 export default function OrderDetailsPage() {
   const params = useParams();
@@ -57,6 +58,10 @@ export default function OrderDetailsPage() {
   const [availableReviewTypes, setAvailableReviewTypes] = useState<ReviewType[]>([]);
   const [existingReviews, setExistingReviews] = useState<Review[]>([]);
   const [hasCheckedReview, setHasCheckedReview] = useState(false);
+
+  // Refund request state
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [shouldCancelWithRefund, setShouldCancelWithRefund] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -417,9 +422,50 @@ export default function OrderDetailsPage() {
     return timeline;
   };
 
-  const canCancel = () => {
+  // Can cancel without refund process (pending orders or confirmed COD orders)
+  const canCancelOnly = () => {
     if (!order) return false;
-    return order.status === "pending" || order.status === "confirmed";
+    // Pending orders (auto refund for card happens in backend)
+    if (order.status === "pending") return true;
+    // Confirmed COD orders (no refund needed)
+    if (order.status === "confirmed" && order.payment_type === "cash") return true;
+    return false;
+  };
+
+  // Can cancel and request refund (confirmed + card + paid)
+  const canCancelAndRefund = () => {
+    if (!order) return false;
+    return (
+      order.status === "confirmed" &&
+      order.payment_type === "card" &&
+      order.payment_status === "paid"
+    );
+  };
+
+  // Check if order can only request a refund (in_progress + card payment)
+  const canRequestRefundOnly = () => {
+    if (!order) return false;
+    return (
+      order.status === "in_progress" &&
+      order.payment_type === "card" &&
+      order.payment_status === "paid"
+    );
+  };
+
+  const handleRefundSuccess = () => {
+    setShowRefundModal(false);
+    setShouldCancelWithRefund(false);
+    loadOrder(); // Reload order to show updated status
+  };
+
+  const openCancelAndRefundModal = () => {
+    setShouldCancelWithRefund(true);
+    setShowRefundModal(true);
+  };
+
+  const openRefundOnlyModal = () => {
+    setShouldCancelWithRefund(false);
+    setShowRefundModal(true);
   };
 
   const getTechnicianStatusInfo = () => {
@@ -799,6 +845,119 @@ export default function OrderDetailsPage() {
             </div>
           )}
 
+          {/* Refund Status */}
+          {order.refund_request && (
+            <div className="bg-white border border-gray-200 rounded-lg">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-gray-900">Refund Request</h2>
+                  {order.refund_request.status === "pending" && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Pending Review
+                    </span>
+                  )}
+                  {order.refund_request.status === "approved" && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Approved
+                    </span>
+                  )}
+                  {order.refund_request.status === "completed" && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Refunded
+                    </span>
+                  )}
+                  {order.refund_request.status === "rejected" && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Rejected
+                    </span>
+                  )}
+                  {order.refund_request.status === "cancelled" && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Cancelled
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Reason */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Reason</p>
+                  <p className="text-sm text-gray-900">{order.refund_request.reason_label}</p>
+                  {order.refund_request.reason_details && (
+                    <p className="text-sm text-gray-600 mt-1">{order.refund_request.reason_details}</p>
+                  )}
+                </div>
+
+                {/* Requested On */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Requested On</p>
+                  <p className="text-sm text-gray-900">{formatDateTime(order.refund_request.created_at)}</p>
+                </div>
+
+                {/* Refund Amount - show when approved or completed */}
+                {(order.refund_request.status === "approved" || order.refund_request.status === "completed") &&
+                  order.refund_request.approved_amount && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-medium text-green-700">Refund Amount</p>
+                          <p className="text-lg font-semibold text-green-800">
+                            {formatCurrency(order.refund_request.approved_amount)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-green-600">
+                            {order.refund_request.refund_percentage}% of order total
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Vendor Response */}
+                {order.refund_request.vendor_response && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">
+                      {order.refund_request.status === "rejected" ? "Rejection Reason" : "Vendor Notes"}
+                    </p>
+                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                      {order.refund_request.vendor_response}
+                    </p>
+                  </div>
+                )}
+
+                {/* Transfer Reference - show when completed */}
+                {order.refund_request.status === "completed" && order.refund_request.transfer_reference && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">Transaction Reference</p>
+                    <p className="text-sm text-gray-900 font-mono bg-gray-50 p-2 rounded">
+                      {order.refund_request.transfer_reference}
+                    </p>
+                    {order.refund_request.transfer_completed_at && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Refunded on {formatDateTime(order.refund_request.transfer_completed_at)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Pending status message */}
+                {order.refund_request.status === "pending" && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800">
+                      Your refund request is being reviewed by the vendor. You will be notified once a decision is made.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Review Section */}
           {order.status === "completed" && (
             <div className="bg-white border border-gray-200 rounded-lg">
@@ -972,7 +1131,7 @@ export default function OrderDetailsPage() {
                 Chat with Technician
               </button>
             )}
-            {canCancel() && (
+            {canCancelOnly() && (
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50"
@@ -981,17 +1140,29 @@ export default function OrderDetailsPage() {
                 Cancel Order
               </button>
             )}
+            {canCancelAndRefund() && (
+              <button
+                onClick={openCancelAndRefundModal}
+                className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-50"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel and Refund
+              </button>
+            )}
+            {canRequestRefundOnly() && (
+              <button
+                onClick={openRefundOnlyModal}
+                className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Request Refund
+              </button>
+            )}
             {order.status === "completed" && (
-              <>
-                <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Request Refund
-                </button>
-                <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Lodge Complaint
-                </button>
-              </>
+              <button className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Lodge Complaint
+              </button>
             )}
           </div>
         </div>
@@ -1050,6 +1221,22 @@ export default function OrderDetailsPage() {
           type={currentReviewType}
           recipientName={getRecipientName()}
           orderNumber={order?.order_number}
+        />
+      )}
+
+      {/* Refund Request Modal */}
+      {order && (
+        <RefundRequestModal
+          isOpen={showRefundModal}
+          onClose={() => {
+            setShowRefundModal(false);
+            setShouldCancelWithRefund(false);
+          }}
+          onSuccess={handleRefundSuccess}
+          orderId={order.id}
+          orderNumber={order.order_number}
+          orderTotal={order.total}
+          shouldCancelOrder={shouldCancelWithRefund}
         />
       )}
     </div>

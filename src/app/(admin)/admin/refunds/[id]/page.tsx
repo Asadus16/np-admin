@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle,
@@ -13,72 +13,165 @@ import {
   ShoppingCart,
   CreditCard,
   MessageSquare,
-  FileText,
+  Loader2,
+  Banknote,
+  Phone,
+  Mail,
+  AlertCircle,
+  DollarSign,
 } from "lucide-react";
-
-const refundData = {
-  id: "REF-001",
-  orderId: "ORD-1234",
-  status: "pending",
-  type: "partial",
-  amount: 150,
-  originalAmount: 350,
-  reason: "Service incomplete",
-  description: "The technician was unable to complete the full service as one of the required parts was not available. Customer requests partial refund for the incomplete portion.",
-  requestedAt: "2024-12-28 10:30 AM",
-  processedAt: null,
-  customer: {
-    id: "CUST-001",
-    name: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+971 50 123 4567",
-  },
-  vendor: {
-    id: "VND-001",
-    name: "Quick Fix Plumbing",
-    email: "info@quickfix.com",
-    phone: "+971 50 987 6543",
-  },
-  order: {
-    id: "ORD-1234",
-    date: "2024-12-27",
-    services: [
-      { name: "Pipe Leak Repair", price: 200 },
-      { name: "Faucet Replacement", price: 150 },
-    ],
-    paymentMethod: "Card •••• 4242",
-  },
-  timeline: [
-    { status: "Refund Requested", time: "2024-12-28 10:30 AM", user: "John Smith (Customer)", completed: true },
-    { status: "Under Review", time: "2024-12-28 10:45 AM", user: "System", completed: true },
-    { status: "Pending Approval", time: null, user: null, completed: false },
-    { status: "Processed", time: null, user: null, completed: false },
-  ],
-  notes: [
-    { id: 1, author: "John Smith", role: "Customer", text: "The pipe repair was done but the faucet replacement couldn't be completed.", createdAt: "2024-12-28 10:30 AM" },
-    { id: 2, author: "Quick Fix Plumbing", role: "Vendor", text: "We confirm that the faucet replacement was not completed due to part unavailability. We support the partial refund request.", createdAt: "2024-12-28 11:00 AM" },
-  ],
-  attachments: [
-    { name: "incomplete_work_photo.jpg", size: "2.4 MB" },
-    { name: "service_report.pdf", size: "156 KB" },
-  ],
-};
+import { getDispute, approveDispute, rejectDispute, completeDispute } from "@/lib/adminDispute";
+import { AdminDispute, RefundStatus } from "@/types/refund";
+import { formatPrice } from "@/lib/customerVendor";
+import { useAppSelector } from "@/store/hooks";
 
 export default function RefundDetailPage() {
   const params = useParams();
-  const [showApproveModal, setShowApproveModal] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [newNote, setNewNote] = useState("");
+  const searchParams = useSearchParams();
+  const { token } = useAppSelector((state) => state.auth);
+  const id = params.id as string;
+  const action = searchParams.get("action");
 
-  const getStatusColor = (status: string) => {
+  const [dispute, setDispute] = useState<AdminDispute | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Modal states
+  const [showApproveModal, setShowApproveModal] = useState(action === "approve");
+  const [showRejectModal, setShowRejectModal] = useState(action === "reject");
+  const [showCompleteModal, setShowCompleteModal] = useState(action === "complete");
+
+  // Form states
+  const [refundPercentage, setRefundPercentage] = useState<number>(100);
+  const [approveNotes, setApproveNotes] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+  const [transferReference, setTransferReference] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+
+  useEffect(() => {
+    const fetchDispute = async () => {
+      if (!token) return;
+      try {
+        setLoading(true);
+        const response = await getDispute(id, token);
+        setDispute(response.data);
+      } catch (err) {
+        setError("Failed to load dispute details");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDispute();
+  }, [id, token]);
+
+  const handleApprove = async () => {
+    if (!dispute || !token) return;
+    try {
+      setActionLoading(true);
+      await approveDispute(id, {
+        refund_percentage: refundPercentage,
+        notes: approveNotes || undefined,
+      }, token);
+      setShowApproveModal(false);
+      // Refresh dispute data
+      const response = await getDispute(id, token);
+      setDispute(response.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to approve dispute");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!dispute || !rejectReason || !token) return;
+    try {
+      setActionLoading(true);
+      await rejectDispute(id, {
+        reason: rejectReason,
+      }, token);
+      setShowRejectModal(false);
+      // Refresh dispute data
+      const response = await getDispute(id, token);
+      setDispute(response.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to reject dispute");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!dispute || !transferReference || !token) return;
+    try {
+      setActionLoading(true);
+      await completeDispute(id, {
+        transfer_reference: transferReference,
+        notes: transferNotes || undefined,
+      }, token);
+      setShowCompleteModal(false);
+      // Refresh dispute data
+      const response = await getDispute(id, token);
+      setDispute(response.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to mark as complete");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const getStatusColor = (status: RefundStatus) => {
     switch (status) {
       case "approved": return "bg-green-100 text-green-700";
       case "pending": return "bg-yellow-100 text-yellow-700";
-      case "processing": return "bg-blue-100 text-blue-700";
+      case "completed": return "bg-blue-100 text-blue-700";
       case "rejected": return "bg-red-100 text-red-700";
+      case "cancelled": return "bg-gray-100 text-gray-600";
       default: return "bg-gray-100 text-gray-600";
     }
   };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const calculateApprovedAmount = () => {
+    if (!dispute) return 0;
+    return (dispute.order_total * refundPercentage) / 100;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (error || !dispute) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <AlertCircle className="h-12 w-12 text-red-400" />
+        <p className="text-gray-600">{error || "Dispute not found"}</p>
+        <Link href="/admin/refunds" className="text-blue-600 hover:underline">
+          Back to Refunds
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -93,39 +186,47 @@ export default function RefundDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-gray-900">{params.id}</h1>
-              <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(refundData.status)}`}>
-                {refundData.status.charAt(0).toUpperCase() + refundData.status.slice(1)}
-              </span>
-              <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${
-                refundData.type === "full" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700"
-              }`}>
-                {refundData.type.charAt(0).toUpperCase() + refundData.type.slice(1)} Refund
+              <h1 className="text-2xl font-semibold text-gray-900">
+                Refund Request
+              </h1>
+              <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${getStatusColor(dispute.status)}`}>
+                {dispute.status.charAt(0).toUpperCase() + dispute.status.slice(1)}
               </span>
             </div>
             <p className="text-sm text-gray-500 mt-1">
-              Order: <Link href={`/admin/orders/${refundData.orderId}`} className="hover:underline">{refundData.orderId}</Link>
+              Order: <Link href={`/admin/orders/${dispute.order_id}`} className="hover:underline">{dispute.order_number}</Link>
             </p>
           </div>
         </div>
-        {refundData.status === "pending" && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {dispute.status === "pending" && (
+            <>
+              <button
+                onClick={() => setShowApproveModal(true)}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Approve
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Reject
+              </button>
+            </>
+          )}
+          {dispute.status === "approved" && (
             <button
-              onClick={() => setShowApproveModal(true)}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+              onClick={() => setShowCompleteModal(true)}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
             >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Approve Refund
+              <Banknote className="h-4 w-4 mr-2" />
+              Mark Transfer Complete
             </button>
-            <button
-              onClick={() => setShowRejectModal(true)}
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50"
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              Reject
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -139,128 +240,164 @@ export default function RefundDetailPage() {
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Refund Amount</p>
-                  <p className="text-2xl font-semibold text-gray-900">${refundData.amount}</p>
-                  <p className="text-xs text-gray-500">of ${refundData.originalAmount} original order</p>
+                  <p className="text-sm text-gray-500">Order Total</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {formatPrice(dispute.order_total)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Reason</p>
-                  <p className="text-sm font-medium text-gray-900 mt-1">{refundData.reason}</p>
+                  <p className="text-sm font-medium text-gray-900 mt-1">{dispute.reason_label}</p>
                 </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Description</p>
-                <p className="text-sm text-gray-700">{refundData.description}</p>
-              </div>
+
+              {dispute.reason_details && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Additional Details</p>
+                  <p className="text-sm text-gray-700">{dispute.reason_details}</p>
+                </div>
+              )}
+
+              {dispute.approved_amount !== null && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="h-5 w-5 text-green-600" />
+                    <span className="font-medium text-green-800">Approved Amount</span>
+                  </div>
+                  <p className="text-2xl font-semibold text-green-700">
+                    {formatPrice(dispute.approved_amount)}
+                  </p>
+                  {dispute.refund_percentage && (
+                    <p className="text-sm text-green-600 mt-1">
+                      {dispute.refund_percentage}% of order total
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {dispute.vendor_response && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Response/Notes</p>
+                  <p className="text-sm text-gray-700">{dispute.vendor_response}</p>
+                </div>
+              )}
+
+              {dispute.transfer_reference && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-800 mb-2">Transfer Details</p>
+                  <p className="text-sm text-blue-700">Reference: {dispute.transfer_reference}</p>
+                  {dispute.transfer_notes && (
+                    <p className="text-sm text-blue-600 mt-1">{dispute.transfer_notes}</p>
+                  )}
+                  {dispute.transfer_completed_at && (
+                    <p className="text-xs text-blue-500 mt-2">
+                      Completed: {formatDate(dispute.transfer_completed_at)}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">Requested At</p>
-                  <p className="text-sm text-gray-900 mt-1">{refundData.requestedAt}</p>
+                  <p className="text-sm text-gray-900 mt-1">{formatDate(dispute.created_at)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Processed At</p>
-                  <p className="text-sm text-gray-900 mt-1">{refundData.processedAt || "—"}</p>
+                  <p className="text-sm text-gray-500">Reviewed At</p>
+                  <p className="text-sm text-gray-900 mt-1">{formatDate(dispute.reviewed_at)}</p>
                 </div>
               </div>
+
+              {dispute.reviewer && (
+                <div>
+                  <p className="text-sm text-gray-500">Reviewed By</p>
+                  <p className="text-sm text-gray-900 mt-1">
+                    {dispute.reviewer.name} ({dispute.reviewer.role})
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Order Information */}
-          <div className="bg-white border border-gray-200 rounded-lg">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Order Information</h2>
-            </div>
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-gray-400" />
-                  <Link href={`/admin/orders/${refundData.order.id}`} className="text-sm font-medium text-gray-900 hover:underline">
-                    {refundData.order.id}
-                  </Link>
-                </div>
-                <span className="text-sm text-gray-500">{refundData.order.date}</span>
-              </div>
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-2">Service</th>
-                      <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-2">Price</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {refundData.order.services.map((service, index) => (
-                      <tr key={index}>
-                        <td className="px-4 py-2 text-sm text-gray-900">{service.name}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">${service.price}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center gap-2 mt-4">
-                <CreditCard className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Paid via {refundData.order.paymentMethod}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes & Communication */}
-          <div className="bg-white border border-gray-200 rounded-lg">
-            <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Notes & Communication</h2>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {refundData.notes.map((note) => (
-                <div key={note.id} className="p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{note.author}</span>
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{note.role}</span>
-                    </div>
-                    <span className="text-xs text-gray-500">{note.createdAt}</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{note.text}</p>
-                </div>
-              ))}
-            </div>
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a note..."
-                  className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                />
-                <button className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800">
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Attachments */}
-          {refundData.attachments.length > 0 && (
+          {dispute.order && (
             <div className="bg-white border border-gray-200 rounded-lg">
               <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Attachments</h2>
+                <h2 className="text-lg font-medium text-gray-900">Order Information</h2>
               </div>
               <div className="p-4">
-                <div className="space-y-2">
-                  {refundData.attachments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                          <p className="text-xs text-gray-500">{file.size}</p>
-                        </div>
-                      </div>
-                      <button className="text-sm text-gray-600 hover:text-gray-900">Download</button>
-                    </div>
-                  ))}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 text-gray-400" />
+                    <Link href={`/admin/orders/${dispute.order.id}`} className="text-sm font-medium text-gray-900 hover:underline">
+                      {dispute.order.order_number}
+                    </Link>
+                  </div>
+                  <span className="text-sm text-gray-500">{dispute.order.scheduled_date}</span>
                 </div>
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-2">Service</th>
+                        <th className="text-center text-xs font-medium text-gray-500 uppercase px-4 py-2">Qty</th>
+                        <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-2">Price</th>
+                        <th className="text-right text-xs font-medium text-gray-500 uppercase px-4 py-2">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {dispute.order.items.map((item) => (
+                        <tr key={item.id}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{item.name}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 text-center">{item.quantity}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatPrice(item.price)}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatPrice(item.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-gray-50">
+                        <td colSpan={3} className="px-4 py-2 text-sm font-medium text-gray-900 text-right">Total</td>
+                        <td className="px-4 py-2 text-sm font-medium text-gray-900 text-right">{formatPrice(dispute.order.total)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <div className="flex items-center gap-2 mt-4">
+                  <CreditCard className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm text-gray-600">Payment: {dispute.order.payment_type}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Customer Bank Details (for approved refunds) */}
+          {(dispute.status === "approved" || dispute.status === "completed") && dispute.customer.bank_details && (
+            <div className="bg-white border border-gray-200 rounded-lg">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-900">Customer Bank Details</h2>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Bank Name</p>
+                    <p className="text-sm font-medium text-gray-900">{dispute.customer.bank_details.bank_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Account Holder</p>
+                    <p className="text-sm font-medium text-gray-900">{dispute.customer.bank_details.account_holder_name}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">IBAN</p>
+                  <p className="text-sm font-medium text-gray-900 font-mono">{dispute.customer.bank_details.iban}</p>
+                </div>
+                {dispute.customer.bank_details.swift_code && (
+                  <div>
+                    <p className="text-sm text-gray-500">SWIFT Code</p>
+                    <p className="text-sm font-medium text-gray-900">{dispute.customer.bank_details.swift_code}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -276,29 +413,49 @@ export default function RefundDetailPage() {
             <div className="p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-gray-400" />
-                <Link href={`/admin/customers/${refundData.customer.id}`} className="text-sm text-gray-900 hover:underline">
-                  {refundData.customer.name}
-                </Link>
+                <span className="text-sm font-medium text-gray-900">
+                  {dispute.customer.name}
+                </span>
               </div>
-              <p className="text-sm text-gray-600 pl-6">{refundData.customer.email}</p>
-              <p className="text-sm text-gray-600 pl-6">{refundData.customer.phone}</p>
+              <div className="flex items-center gap-2 pl-6">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">{dispute.customer.email}</span>
+              </div>
+              <div className="flex items-center gap-2 pl-6">
+                <Phone className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">{dispute.customer.phone}</span>
+              </div>
             </div>
           </div>
 
-          {/* Vendor */}
+          {/* Company */}
           <div className="bg-white border border-gray-200 rounded-lg">
             <div className="p-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">Vendor</h2>
+              <h2 className="text-lg font-medium text-gray-900">Company</h2>
             </div>
             <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-gray-400" />
-                <Link href={`/admin/vendors/${refundData.vendor.id}`} className="text-sm text-gray-900 hover:underline">
-                  {refundData.vendor.name}
-                </Link>
+              <div className="flex items-center gap-3">
+                <Building2 className="h-10 w-10 text-gray-400" />
+                <div>
+                  <Link
+                    href={`/admin/vendors/${dispute.company.id}`}
+                    className="text-sm font-medium text-gray-900 hover:underline"
+                  >
+                    {dispute.company.name}
+                  </Link>
+                  {dispute.company.category && (
+                    <p className="text-xs text-gray-500">{dispute.company.category.name}</p>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-gray-600 pl-6">{refundData.vendor.email}</p>
-              <p className="text-sm text-gray-600 pl-6">{refundData.vendor.phone}</p>
+              <div className="flex items-center gap-2 pl-1">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">{dispute.company.email}</span>
+              </div>
+              <div className="flex items-center gap-2 pl-1">
+                <Phone className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">{dispute.company.phone}</span>
+              </div>
             </div>
           </div>
 
@@ -309,44 +466,93 @@ export default function RefundDetailPage() {
             </div>
             <div className="p-4">
               <div className="space-y-4">
-                {refundData.timeline.map((item, index) => (
-                  <div key={index} className="flex items-start gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center bg-green-100">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">Refund Requested</p>
+                    <p className="text-xs text-gray-500">{formatDate(dispute.created_at)}</p>
+                    <p className="text-xs text-gray-500">{dispute.customer.name}</p>
+                  </div>
+                </div>
+
+                {dispute.reviewed_at && (
+                  <div className="flex items-start gap-3">
                     <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center ${
-                      item.completed ? "bg-green-100" : "bg-gray-100"
+                      dispute.status === "rejected" ? "bg-red-100" : "bg-green-100"
                     }`}>
-                      {item.completed ? (
-                        <CheckCircle className="h-3 w-3 text-green-600" />
+                      {dispute.status === "rejected" ? (
+                        <XCircle className="h-3 w-3 text-red-600" />
                       ) : (
-                        <Clock className="h-3 w-3 text-gray-400" />
+                        <CheckCircle className="h-3 w-3 text-green-600" />
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className={`text-sm ${item.completed ? "text-gray-900" : "text-gray-400"}`}>
-                        {item.status}
+                      <p className="text-sm text-gray-900">
+                        {dispute.status === "rejected" ? "Rejected" : "Approved"}
                       </p>
-                      {item.time && (
-                        <p className="text-xs text-gray-500">{item.time}</p>
-                      )}
-                      {item.user && (
-                        <p className="text-xs text-gray-500">{item.user}</p>
+                      <p className="text-xs text-gray-500">{formatDate(dispute.reviewed_at)}</p>
+                      {dispute.reviewer && (
+                        <p className="text-xs text-gray-500">{dispute.reviewer.name}</p>
                       )}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {dispute.transfer_completed_at && (
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center bg-blue-100">
+                      <CheckCircle className="h-3 w-3 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-900">Transfer Completed</p>
+                      <p className="text-xs text-gray-500">{formatDate(dispute.transfer_completed_at)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {dispute.status === "pending" && (
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center bg-gray-100">
+                      <Clock className="h-3 w-3 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-400">Awaiting Review</p>
+                    </div>
+                  </div>
+                )}
+
+                {dispute.status === "approved" && !dispute.transfer_completed_at && (
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center bg-gray-100">
+                      <Clock className="h-3 w-3 text-gray-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-400">Awaiting Transfer</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Quick Actions */}
           <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-2">
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+            <Link
+              href={`/admin/messages?customer=${dispute.customer.id}`}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
               <MessageSquare className="h-4 w-4" />
               Contact Customer
-            </button>
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+            </Link>
+            <Link
+              href={`/admin/vendors/${dispute.company.id}`}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
               <Building2 className="h-4 w-4" />
-              Contact Vendor
-            </button>
+              View Company
+            </Link>
           </div>
         </div>
       </div>
@@ -357,35 +563,71 @@ export default function RefundDetailPage() {
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Approve Refund</h3>
             <p className="text-sm text-gray-600 mb-4">
-              You are about to approve a refund of <span className="font-semibold">${refundData.amount}</span> to {refundData.customer.name}.
+              Set the refund percentage for this request. The customer will receive the approved amount via bank transfer.
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Refund Method</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20">
-                  <option value="original">Original Payment Method ({refundData.order.paymentMethod})</option>
-                  <option value="wallet">Customer Wallet Credit</option>
-                  <option value="points">Points ({refundData.amount * 10} pts)</option>
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Refund Percentage
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {[25, 50, 75, 90, 100].map((percent) => (
+                    <button
+                      key={percent}
+                      type="button"
+                      onClick={() => setRefundPercentage(percent)}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                        refundPercentage === percent
+                          ? "bg-green-600 text-white border-green-600"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {percent}%
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Order Total:</span>
+                    <span className="text-gray-900">{formatPrice(dispute.order_total)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Refund Amount:</span>
+                    <span className="font-semibold text-green-600">{formatPrice(calculateApprovedAmount())}</span>
+                  </div>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Admin Notes (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
                 <textarea
                   rows={3}
+                  value={approveNotes}
+                  onChange={(e) => setApproveNotes(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                  placeholder="Internal notes about this refund..."
+                  placeholder="Internal notes about this approval..."
                 />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowApproveModal(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700">
-                Confirm Approval
+              <button
+                onClick={handleApprove}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                ) : (
+                  "Confirm Approval"
+                )}
               </button>
             </div>
           </div>
@@ -398,42 +640,105 @@ export default function RefundDetailPage() {
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Reject Refund</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Please provide a reason for rejecting this refund request.
+              Please provide a reason for rejecting this refund request. This will be communicated to the customer.
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rejection Reason</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20">
-                  <option value="">Select reason</option>
-                  <option value="service_completed">Service Was Completed</option>
-                  <option value="outside_policy">Outside Refund Policy</option>
-                  <option value="insufficient_evidence">Insufficient Evidence</option>
-                  <option value="fraud_suspected">Fraud Suspected</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Explanation</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rejection Reason *
+                </label>
                 <textarea
-                  rows={3}
+                  rows={4}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                  placeholder="Provide details for the rejection..."
+                  placeholder="Explain why this refund request is being rejected..."
+                  required
                 />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="notify" className="rounded border-gray-300" defaultChecked />
-                <label htmlFor="notify" className="text-sm text-gray-700">Notify customer of rejection</label>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
               >
                 Cancel
               </button>
-              <button className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">
-                Confirm Rejection
+              <button
+                onClick={handleReject}
+                disabled={actionLoading || !rejectReason.trim()}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                ) : (
+                  "Confirm Rejection"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Transfer Modal */}
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Mark Transfer Complete</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Enter the bank transfer reference to mark this refund as completed.
+            </p>
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+              <p className="text-sm text-green-800">
+                Amount to transfer: <span className="font-semibold">{formatPrice(dispute.approved_amount || 0)}</span>
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transfer Reference *
+                </label>
+                <input
+                  type="text"
+                  value={transferReference}
+                  onChange={(e) => setTransferReference(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
+                  placeholder="Bank transfer reference number..."
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={transferNotes}
+                  onChange={(e) => setTransferNotes(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20"
+                  placeholder="Any additional notes..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowCompleteModal(false)}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleComplete}
+                disabled={actionLoading || !transferReference.trim()}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                ) : (
+                  "Confirm Complete"
+                )}
               </button>
             </div>
           </div>

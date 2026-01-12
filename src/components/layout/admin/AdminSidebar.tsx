@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
+import { fetchPendingRefundCount, incrementPendingCount, decrementPendingCount } from "@/store/slices/refundSlice";
+import { joinAdminDisputesRoom, leaveAdminDisputesRoom, onDispute, offDispute, SocketDisputeEvent } from "@/lib/socket";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -162,7 +164,9 @@ const navigation: NavItem[] = [
 export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
+  const { token } = useAppSelector((state) => state.auth);
   const { unreadCount } = useAppSelector((state) => state.chat);
+  const { pendingCount: pendingRefundCount } = useAppSelector((state) => state.refund);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -181,6 +185,36 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
   // Fetch unread count on mount only
   useEffect(() => {
     dispatch(fetchUnreadCount());
+  }, [dispatch]);
+
+  // Fetch pending refund count on mount
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchPendingRefundCount(token));
+    }
+  }, [dispatch, token]);
+
+  // Join admin disputes room and listen for dispute events via socket
+  useEffect(() => {
+    // Join the admin disputes room for real-time updates
+    joinAdminDisputesRoom();
+
+    const handleDispute = (event: SocketDisputeEvent) => {
+      if (event.event_type === 'created') {
+        // New refund request - increment pending count
+        dispatch(incrementPendingCount());
+      } else if (event.event_type === 'approved' || event.event_type === 'rejected' || event.event_type === 'completed') {
+        // Refund processed - decrement pending count
+        dispatch(decrementPendingCount());
+      }
+    };
+
+    onDispute(handleDispute);
+
+    return () => {
+      offDispute(handleDispute);
+      leaveAdminDisputesRoom();
+    };
   }, [dispatch]);
 
   const toggleExpand = (name: string) => {
@@ -274,6 +308,11 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
                     {item.name === "Messages" && unreadCount > 0 && (
                       <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
                         {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                    {item.name === "Refunds" && pendingRefundCount > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-amber-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {pendingRefundCount > 99 ? "99+" : pendingRefundCount}
                       </span>
                     )}
                   </Link>
