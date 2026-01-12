@@ -47,6 +47,22 @@ export interface OrderCoupon {
   discount: number;
 }
 
+export interface OrderRefundRequest {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  reason: string;
+  reason_label: string;
+  reason_details: string | null;
+  order_total: number;
+  approved_amount: number | null;
+  refund_percentage: number | null;
+  vendor_response: string | null;
+  transfer_reference: string | null;
+  reviewed_at: string | null;
+  transfer_completed_at: string | null;
+  created_at: string;
+}
+
 export type TechnicianStatus =
   | 'assigned'
   | 'acknowledged'
@@ -101,6 +117,8 @@ export interface Order {
   cancelled_at: string | null;
   created_at: string;
   updated_at: string;
+  // Refund request (if any)
+  refund_request: OrderRefundRequest | null;
 }
 
 // Vendor for customer listing
