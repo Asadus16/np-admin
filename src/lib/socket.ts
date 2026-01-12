@@ -784,3 +784,165 @@ export const offAuditLog = (callback: (data: SocketAuditLog) => void): void => {
     }
   }
 };
+
+// ============================================
+// DISPUTE SOCKET FUNCTIONS
+// ============================================
+
+export interface SocketDispute {
+  id: string;
+  order_id: string;
+  order_number: string;
+  customer_name: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  reason: string;
+  reason_label: string;
+  reason_details: string | null;
+  order_total: number;
+  approved_amount: number | null;
+  refund_percentage: number | null;
+  vendor_response: string | null;
+  created_at: string;
+}
+
+export interface SocketDisputeEvent {
+  event_type: 'created' | 'updated' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  dispute: SocketDispute;
+}
+
+// Store dispute handlers for proper cleanup
+const disputeHandlers = new Map<
+  (data: SocketDisputeEvent) => void,
+  { wrapper: (data: SocketDisputeEvent) => void; connectHandler?: () => void }
+>();
+
+/**
+ * Listen for incoming dispute events
+ */
+export const onDispute = (callback: (data: SocketDisputeEvent) => void): void => {
+  console.log('[SOCKET] onDispute called');
+  const currentSocket = socket || initializeSocket();
+
+  if (!currentSocket) {
+    console.error('[SOCKET] Cannot register dispute listener - no socket');
+    return;
+  }
+
+  // Create the handler function
+  const disputeHandler = (data: SocketDisputeEvent) => {
+    console.log('[SOCKET] >>> RECEIVED DISPUTE:', data);
+    console.log('[SOCKET] Calling callback with dispute');
+    try {
+      callback(data);
+      console.log('[SOCKET] Callback executed successfully');
+    } catch (err) {
+      console.error('[SOCKET] Error in dispute callback:', err);
+    }
+  };
+
+  console.log('[SOCKET] Registering dispute listener, socket connected:', currentSocket.connected);
+
+  // Register the listener
+  currentSocket.on('dispute', disputeHandler);
+
+  // Store for cleanup
+  disputeHandlers.set(callback, { wrapper: disputeHandler });
+
+  console.log('[SOCKET] Dispute listener registered, total listeners:', currentSocket.listeners('dispute').length);
+};
+
+/**
+ * Remove dispute listener
+ */
+export const offDispute = (callback: (data: SocketDisputeEvent) => void): void => {
+  console.log('[SOCKET] offDispute called');
+  const currentSocket = socket;
+
+  if (currentSocket) {
+    const handlers = disputeHandlers.get(callback);
+    if (handlers) {
+      currentSocket.off('dispute', handlers.wrapper);
+      disputeHandlers.delete(callback);
+      console.log('[SOCKET] Dispute listener removed, remaining listeners:', currentSocket.listeners('dispute').length);
+    }
+  }
+};
+
+// ============================================
+// ADMIN DISPUTE SOCKET FUNCTIONS
+// ============================================
+
+// Store the admin disputes room join handler for cleanup
+let adminDisputesRoomJoinHandler: (() => void) | null = null;
+
+/**
+ * Join the admin disputes room for real-time updates
+ */
+export const joinAdminDisputesRoom = (): void => {
+  console.log('[SOCKET] joinAdminDisputesRoom called');
+  const currentSocket = socket || initializeSocket();
+
+  if (!currentSocket) {
+    console.error('[SOCKET] Cannot join admin disputes room - no socket');
+    return;
+  }
+
+  console.log('[SOCKET] Socket state - connected:', currentSocket.connected, 'id:', currentSocket.id);
+
+  // Function to emit join event
+  const emitJoin = () => {
+    console.log('[SOCKET] Emitting join_admin_disputes, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
+    currentSocket.emit('join_admin_disputes');
+    console.log('[SOCKET] Emitted join_admin_disputes event');
+  };
+
+  // If connected, emit immediately
+  if (currentSocket.connected) {
+    console.log('[SOCKET] Socket already connected, joining admin disputes room immediately');
+    emitJoin();
+  } else {
+    console.log('[SOCKET] Socket not connected, will join when connected');
+  }
+
+  // Remove any existing handler before adding new one
+  if (adminDisputesRoomJoinHandler) {
+    currentSocket.off('connect', adminDisputesRoomJoinHandler);
+  }
+
+  // Create persistent handler for reconnections
+  adminDisputesRoomJoinHandler = () => {
+    console.log('[SOCKET] Connect event fired, emitting join_admin_disputes');
+    currentSocket.emit('join_admin_disputes');
+  };
+
+  // Always register connect handler for reconnections
+  currentSocket.on('connect', adminDisputesRoomJoinHandler);
+
+  // If not connected, start connection
+  if (!currentSocket.connected) {
+    currentSocket.connect();
+    console.log('[SOCKET] Called connect()');
+  }
+};
+
+/**
+ * Leave the admin disputes room
+ */
+export const leaveAdminDisputesRoom = (): void => {
+  console.log('[SOCKET] leaveAdminDisputesRoom called');
+  const currentSocket = socket;
+
+  if (currentSocket) {
+    // Remove the connect listener
+    if (adminDisputesRoomJoinHandler) {
+      currentSocket.off('connect', adminDisputesRoomJoinHandler);
+      adminDisputesRoomJoinHandler = null;
+    }
+
+    // Leave the room if connected
+    if (currentSocket.connected) {
+      currentSocket.emit('leave_admin_disputes');
+      console.log('[SOCKET] Left admin disputes room');
+    }
+  }
+};
