@@ -76,6 +76,7 @@ const navigation: NavItem[] = [
     icon: <Wallet className="h-4 w-4" />,
     children: [
       { name: "Balance", href: "/vendor/wallet" },
+      { name: "Payouts", href: "/vendor/payouts" },
       { name: "Payout Methods", href: "/vendor/wallet/payout-methods" },
       { name: "History", href: "/vendor/wallet/history" },
     ],
