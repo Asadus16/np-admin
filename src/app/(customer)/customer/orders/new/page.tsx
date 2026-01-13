@@ -3,54 +3,34 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  MapPin,
-  Calendar,
-  Clock,
-  CreditCard,
-  Star,
-  Plus,
-  ShoppingCart,
-  Loader2,
-  AlertCircle,
-  Banknote,
-  ChevronDown,
-  ChevronUp,
-  Coins,
-} from "lucide-react";
-import { getCustomerCategories, getCustomerVendors, getCustomerVendor, formatDistance, formatPrice } from "@/lib/customerVendor";
+import { ArrowLeft, ArrowRight, Loader2, AlertCircle, ShoppingCart } from "lucide-react";
+import { getCustomerCategories, getCustomerVendors, getCustomerVendor } from "@/lib/customerVendor";
 import { getAddresses, Address } from "@/lib/address";
 import { getPaymentMethods, PaymentMethod } from "@/lib/paymentMethod";
-import { createOrder, validateCoupon } from "@/lib/order";
+import { createOrder } from "@/lib/order";
 import { getCustomerPointsBalance } from "@/lib/points";
 import { getCustomerTaxSettings } from "@/lib/feesCommissions";
-import { CustomerCategory, CustomerVendor, CustomerVendorService, CustomerVendorSubService, CreateOrderData } from "@/types/order";
+import { CustomerCategory, CustomerVendor, CustomerVendorSubService, CreateOrderData } from "@/types/order";
 import { PointsBalance } from "@/types/points";
 import { TaxSettings } from "@/types/feesCommissions";
 
-// Step definitions - 4 main steps, step 4 has sub-steps
-const steps = [
-  { id: 1, name: "Category" },
-  { id: 2, name: "Vendor" },
-  { id: 3, name: "Services" },
-  { id: 4, name: "Checkout" },
-];
-
-// Checkout sub-steps
-const checkoutSubSteps = [
-  { id: 1, name: "Address & Schedule" },
-  { id: 2, name: "Payment" },
-  { id: 3, name: "Summary" },
-];
-
-interface SelectedItem {
-  subService: CustomerVendorSubService;
-  serviceName: string;
-  quantity: number;
-}
+import {
+  SelectedItem,
+  OrderType,
+  PaymentType,
+  RecurringFrequency,
+  ORDER_STEPS,
+  OrderStepIndicator,
+  CategoryStep,
+  VendorStep,
+  ServiceStep,
+  AddressScheduleStep,
+  PaymentStep,
+  SummaryStep,
+  useOrderPricing,
+  useCoupon,
+  formatCurrency,
+} from "@/components/order";
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -77,17 +57,13 @@ export default function NewOrderPage() {
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const [orderType, setOrderType] = useState<"now" | "schedule" | "recurring">("schedule");
+  const [orderType, setOrderType] = useState<OrderType>("schedule");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
-  const [recurringFrequency, setRecurringFrequency] = useState<"daily" | "weekly" | "biweekly" | "monthly">("weekly");
-  const [paymentType, setPaymentType] = useState<"card" | "cash" | "points">("card");
+  const [recurringFrequency, setRecurringFrequency] = useState<RecurringFrequency>("weekly");
+  const [paymentType, setPaymentType] = useState<PaymentType>("card");
   const [pointsRemainingPayment, setPointsRemainingPayment] = useState<"card" | "cash">("card");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
-  const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [couponLoading, setCouponLoading] = useState(false);
   const [notes, setNotes] = useState("");
 
   // Points redemption states
@@ -98,75 +74,25 @@ export default function NewOrderPage() {
   // Expanded services state for accordion
   const [expandedServices, setExpandedServices] = useState<string[]>([]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AE", {
-      style: "currency",
-      currency: "AED",
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
+  // Coupon hook
+  const {
+    couponCode,
+    setCouponCode,
+    appliedCoupon,
+    couponError,
+    couponLoading,
+    handleApplyCoupon,
+    handleRemoveCoupon,
+  } = useCoupon();
 
-  const getSubtotal = () => {
-    return selectedItems.reduce((sum, item) => {
-      const price = typeof item.subService.price === 'string' 
-        ? parseFloat(item.subService.price) 
-        : item.subService.price;
-      return sum + price * item.quantity;
-    }, 0);
-  };
-
-  const getTax = () => {
-    // Use VAT from selected vendor if available, otherwise fall back to tax settings
-    const vatSettings = selectedVendorDetails?.vat || taxSettings;
-    
-    if (!vatSettings) {
-      return 0;
-    }
-    
-    // Handle both vendor vat format and taxSettings format
-    const vatEnabled = 'enabled' in vatSettings ? vatSettings.enabled : vatSettings.vat_enabled;
-    const vatRate = 'rate' in vatSettings ? vatSettings.rate : vatSettings.vat_rate;
-    
-    if (!vatEnabled) {
-      return 0;
-    }
-    
-    const subtotal = getSubtotal();
-    const discount = appliedCoupon?.discount || 0;
-    const vatRateDecimal = vatRate / 100; // Convert from percentage (0-100) to decimal
-    return Math.round((subtotal - discount) * vatRateDecimal * 100) / 100;
-  };
-
-  const getVatSettings = () => {
-    // Use VAT from selected vendor if available, otherwise fall back to tax settings
-    const vatSettings = selectedVendorDetails?.vat || taxSettings;
-    
-    if (!vatSettings) {
-      return null;
-    }
-    
-    // Normalize to same format
-    if ('enabled' in vatSettings) {
-      return {
-        vat_enabled: vatSettings.enabled,
-        vat_rate: vatSettings.rate,
-        tax_registration_number: vatSettings.tax_registration_number || null,
-      };
-    }
-    
-    return vatSettings;
-  };
-
-  const getTotal = () => {
-    const subtotal = getSubtotal();
-    const discount = appliedCoupon?.discount || 0;
-    const tax = getTax();
-    return Math.max(0, subtotal - discount + tax - pointsDiscount);
-  };
-
-  const getTotalDuration = () => {
-    return selectedItems.reduce((sum, item) => sum + item.subService.duration * item.quantity, 0);
-  };
+  // Pricing hook
+  const { subtotal, tax, total, totalDuration, vatSettings } = useOrderPricing({
+    selectedItems,
+    selectedVendorDetails,
+    taxSettings,
+    appliedCoupon,
+    pointsDiscount,
+  });
 
   // Load categories and tax settings on mount
   useEffect(() => {
@@ -214,13 +140,8 @@ export default function NewOrderPage() {
       const response = await getCustomerTaxSettings();
       setTaxSettings(response.data);
     } catch (err) {
-      // If tax settings fail to load, use default values (VAT disabled)
       console.error("Failed to load tax settings:", err);
-      setTaxSettings({
-        vat_enabled: false,
-        vat_rate: 5,
-        tax_registration_number: null,
-      });
+      setTaxSettings({ vat_enabled: false, vat_rate: 5, tax_registration_number: null });
     }
   };
 
@@ -248,7 +169,6 @@ export default function NewOrderPage() {
     try {
       const response = await getCustomerVendor(selectedVendor);
       setSelectedVendorDetails(response.data);
-      // Expand first service by default
       if (response.data.services && response.data.services.length > 0) {
         setExpandedServices([response.data.services[0].id]);
       }
@@ -271,20 +191,17 @@ export default function NewOrderPage() {
       setAddresses(addressResponse.data);
       setPaymentMethods(paymentResponse.data);
 
-      // Auto-select primary/default
       const primaryAddress = addressResponse.data.find((a) => a.is_primary);
       if (primaryAddress) setSelectedAddress(primaryAddress.id);
 
       const defaultPayment = paymentResponse.data.find((p) => p.is_default);
       if (defaultPayment) setSelectedPaymentMethod(defaultPayment.id);
 
-      // Load points balance
       try {
         const pointsResponse = await getCustomerPointsBalance();
         setPointsBalance(pointsResponse.data);
       } catch (pointsErr) {
         console.error("Failed to load points balance:", pointsErr);
-        // Don't fail the whole checkout if points fails
       }
     } catch (err) {
       setError("Failed to load checkout data");
@@ -292,6 +209,20 @@ export default function NewOrderPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    setSelectedVendor(null);
+    setSelectedItems([]);
+    setVendors([]);
+    setCurrentStep(2);
+  };
+
+  const handleVendorSelect = (vendorId: string) => {
+    setSelectedVendor(vendorId);
+    setSelectedItems([]);
+    setCurrentStep(3);
   };
 
   const handleItemToggle = (subService: CustomerVendorSubService, serviceName: string) => {
@@ -308,57 +239,26 @@ export default function NewOrderPage() {
     setSelectedItems((prev) =>
       prev.map((item) => {
         if (item.subService.id === subServiceId) {
-          const newQuantity = Math.max(1, item.quantity + delta);
-          return { ...item, quantity: newQuantity };
+          return { ...item, quantity: Math.max(1, item.quantity + delta) };
         }
         return item;
       })
     );
   };
 
-  const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return;
-
-    setCouponLoading(true);
-    setCouponError(null);
-    try {
-      const response = await validateCoupon(couponCode, getSubtotal());
-      setAppliedCoupon({
-        code: response.data.code,
-        discount: response.data.discount,
-      });
-      setCouponError(null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Invalid coupon code";
-      setCouponError(errorMessage);
-      setAppliedCoupon(null);
-    } finally {
-      setCouponLoading(false);
-    }
+  const toggleServiceExpanded = (serviceId: string) => {
+    setExpandedServices((prev) =>
+      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
+    );
   };
 
-  const handleRemoveCoupon = () => {
-    setAppliedCoupon(null);
-    setCouponCode("");
-    setCouponError(null);
-  };
-
-  // Handle points payment selection
   const handlePointsPaymentSelect = () => {
     if (!pointsBalance) return;
-
     setPaymentType("points");
-
-    // Calculate how many points to use (up to order total)
-    const subtotal = getSubtotal();
     const discount = appliedCoupon?.discount || 0;
-    const tax = getTax();
     const orderTotalBeforePoints = subtotal - discount + tax;
-
-    // Use all available points up to the order total
     const pointsToUse = Math.min(pointsBalance.available_points, Math.ceil(orderTotalBeforePoints));
     const pointsDiscountAmount = Math.min(pointsToUse, orderTotalBeforePoints);
-
     setPointsToRedeem(pointsToUse);
     setPointsDiscount(pointsDiscountAmount);
   };
@@ -366,27 +266,19 @@ export default function NewOrderPage() {
   const handleClearPoints = () => {
     setPointsToRedeem(0);
     setPointsDiscount(0);
-    setPaymentType("card");
   };
 
-  // Check if points cover full amount
   const isFullyPaidWithPoints = () => {
     if (!pointsBalance || paymentType !== "points") return false;
-    const subtotal = getSubtotal();
     const discount = appliedCoupon?.discount || 0;
-    const tax = getTax();
-    const orderTotalBeforePoints = subtotal - discount + tax;
-    return pointsBalance.available_points >= orderTotalBeforePoints;
+    return pointsBalance.available_points >= subtotal - discount + tax;
   };
 
   const canProceed = () => {
     switch (currentStep) {
-      case 1:
-        return selectedCategory !== null;
-      case 2:
-        return selectedVendor !== null;
-      case 3:
-        return selectedItems.length > 0;
+      case 1: return selectedCategory !== null;
+      case 2: return selectedVendor !== null;
+      case 3: return selectedItems.length > 0;
       case 4:
         if (checkoutSubStep === 1) {
           if (selectedAddress === null) return false;
@@ -397,17 +289,14 @@ export default function NewOrderPage() {
           if (paymentType === "cash") return true;
           if (paymentType === "card") return selectedPaymentMethod !== null;
           if (paymentType === "points") {
-            // If fully paid with points, no additional payment needed
             if (isFullyPaidWithPoints()) return true;
-            // Otherwise, need a valid remaining payment method
             if (pointsRemainingPayment === "cash") return true;
-            if (pointsRemainingPayment === "card") return selectedPaymentMethod !== null;
+            return selectedPaymentMethod !== null;
           }
           return false;
         }
         return true;
-      default:
-        return true;
+      default: return true;
     }
   };
 
@@ -428,9 +317,7 @@ export default function NewOrderPage() {
       setCheckoutSubStep(checkoutSubStep - 1);
     } else if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
-      if (currentStep === 4) {
-        setCheckoutSubStep(1);
-      }
+      if (currentStep === 4) setCheckoutSubStep(1);
     }
   };
 
@@ -441,30 +328,30 @@ export default function NewOrderPage() {
     setError(null);
 
     try {
-      // For "Order Now", use today's date and current time
       let scheduledDate = selectedDate;
       let scheduledTime = selectedTime;
 
       if (orderType === "now") {
         const now = new Date();
-        scheduledDate = now.toISOString().split("T")[0];
-        // Round up to next 30-minute slot
         const minutes = now.getMinutes();
-        const roundedMinutes = minutes < 30 ? 30 : 0;
-        const hours = minutes < 30 ? now.getHours() : now.getHours() + 1;
-        scheduledTime = `${hours.toString().padStart(2, "0")}:${roundedMinutes.toString().padStart(2, "0")}`;
+        // Round to next 30-minute slot
+        if (minutes >= 30) {
+          now.setHours(now.getHours() + 1);
+          now.setMinutes(0);
+        } else {
+          now.setMinutes(30);
+        }
+        scheduledDate = now.toISOString().split("T")[0];
+        scheduledTime = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
       }
 
-      // Determine actual payment type for the backend
       let actualPaymentType: "card" | "cash" | "wallet" = "card";
       let paymentMethodId: string | undefined = undefined;
 
       if (paymentType === "points") {
         if (isFullyPaidWithPoints()) {
-          // Fully paid with points - use card as placeholder (no charge will be made)
           actualPaymentType = "card";
         } else {
-          // Partial points - use remaining payment method
           actualPaymentType = pointsRemainingPayment;
           if (pointsRemainingPayment === "card") {
             paymentMethodId = selectedPaymentMethod || undefined;
@@ -476,10 +363,6 @@ export default function NewOrderPage() {
       } else {
         actualPaymentType = "cash";
       }
-
-      // Get VAT settings for the payload
-      const vatSettings = getVatSettings();
-      const calculatedTax = getTax();
 
       const orderData: CreateOrderData = {
         vendor_id: selectedVendor,
@@ -494,20 +377,17 @@ export default function NewOrderPage() {
           sub_service_id: item.subService.id,
           quantity: item.quantity,
         })),
-        // Add recurring order fields if applicable
         is_recurring: orderType === "recurring",
         frequency_type: orderType === "recurring" ? recurringFrequency : undefined,
-        // Add points redemption
         points_to_redeem: pointsToRedeem > 0 ? pointsToRedeem : undefined,
       };
 
-      // Add VAT information if enabled
       if (vatSettings && vatSettings.vat_enabled) {
         orderData.vat = {
           enabled: vatSettings.vat_enabled,
           rate: vatSettings.vat_rate,
           tax_registration_number: vatSettings.tax_registration_number || null,
-          amount: calculatedTax,
+          amount: tax,
         };
       }
 
@@ -521,22 +401,6 @@ export default function NewOrderPage() {
     }
   };
 
-  const toggleServiceExpanded = (serviceId: string) => {
-    setExpandedServices((prev) =>
-      prev.includes(serviceId)
-        ? prev.filter((id) => id !== serviceId)
-        : [...prev, serviceId]
-    );
-  };
-
-  // Time slots (30-minute intervals)
-  const timeSlots = [
-    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
-    "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
-    "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
-    "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
-  ];
-
   const renderStepContent = () => {
     if (loading) {
       return (
@@ -549,253 +413,37 @@ export default function NewOrderPage() {
     switch (currentStep) {
       case 1:
         return (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Select a Category</h2>
-            {categories.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No categories available</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setSelectedCategory(cat.id);
-                      setSelectedVendor(null);
-                      setSelectedItems([]);
-                      setVendors([]);
-                      setCurrentStep(2); // Auto-advance to vendor selection
-                    }}
-                    className={`p-4 rounded-lg border-2 transition-all text-left ${
-                      selectedCategory === cat.id
-                        ? "border-gray-900 bg-gray-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    {cat.image ? (
-                      <img
-                        src={cat.image}
-                        alt={cat.name}
-                        className="w-12 h-12 rounded-lg object-cover mx-auto mb-3"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center mx-auto mb-3">
-                        <span className="text-lg font-medium text-gray-600">
-                          {cat.name.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-sm font-medium text-gray-900 text-center">{cat.name}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <CategoryStep
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleCategorySelect}
+          />
         );
-
       case 2:
         return (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Choose a Vendor</h2>
-            <p className="text-sm text-gray-500 mb-4">Sorted by distance (nearest first)</p>
-            {vendors.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No vendors available for this category</p>
-            ) : (
-              <div className="space-y-3">
-                {vendors.map((vendor) => (
-                  <button
-                    key={vendor.id}
-                    onClick={() => {
-                      if (vendor.available) {
-                        setSelectedVendor(vendor.id);
-                        setSelectedItems([]);
-                        setCurrentStep(3); // Auto-advance to service selection
-                      }
-                    }}
-                    disabled={!vendor.available}
-                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                      selectedVendor === vendor.id
-                        ? "border-gray-900 bg-gray-50"
-                        : vendor.available
-                        ? "border-gray-200 hover:border-gray-300"
-                        : "border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-medium text-gray-600">{vendor.logo}</span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{vendor.name}</p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-4 w-4 text-amber-500 fill-current" />
-                              <span>{vendor.rating}</span>
-                            </div>
-                            <span>({vendor.reviews_count} reviews)</span>
-                            {vendor.starting_price && (
-                              <>
-                                <span className="hidden sm:inline">|</span>
-                                <span className="hidden sm:inline">From {formatCurrency(vendor.starting_price)}</span>
-                              </>
-                            )}
-                          </div>
-                          {vendor.description && (
-                            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{vendor.description}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0 ml-4">
-                        {vendor.available ? (
-                          <>
-                            <span className="text-xs text-green-600 font-medium">Available</span>
-                            <p className="text-sm font-medium text-gray-900 mt-1">
-                              {formatDistance(vendor.distance_km)}
-                            </p>
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-400">Unavailable</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <VendorStep
+            vendors={vendors}
+            selectedVendor={selectedVendor}
+            onSelectVendor={handleVendorSelect}
+            formatCurrency={formatCurrency}
+          />
         );
-
       case 3:
         return (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Services</h2>
-            {!selectedVendorDetails?.services || selectedVendorDetails.services.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No services available from this vendor</p>
-            ) : (
-              <div className="space-y-4">
-                {selectedVendorDetails.services.map((service) => (
-                  <div key={service.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => toggleServiceExpanded(service.id)}
-                      className="w-full p-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {service.image ? (
-                          <img
-                            src={service.image}
-                            alt={service.name}
-                            className="w-10 h-10 rounded object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-500">{service.name.charAt(0)}</span>
-                          </div>
-                        )}
-                        <div className="text-left">
-                          <p className="font-medium text-gray-900">{service.name}</p>
-                          <p className="text-xs text-gray-500">{service.sub_services.length} sub-services</p>
-                        </div>
-                      </div>
-                      {expandedServices.includes(service.id) ? (
-                        <ChevronUp className="h-5 w-5 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5 text-gray-400" />
-                      )}
-                    </button>
-
-                    {expandedServices.includes(service.id) && (
-                      <div className="p-4 space-y-3 border-t border-gray-200">
-                        {service.sub_services.map((subService) => {
-                          const isSelected = selectedItems.some((item) => item.subService.id === subService.id);
-                          const selectedItem = selectedItems.find((item) => item.subService.id === subService.id);
-
-                          return (
-                            <div
-                              key={subService.id}
-                              className={`p-4 rounded-lg border-2 transition-all ${
-                                isSelected ? "border-gray-900 bg-gray-50" : "border-gray-200"
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-gray-900">{subService.name}</p>
-                                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                                    <span>
-                                      {formatCurrency(
-                                        typeof subService.price === 'string' 
-                                          ? parseFloat(subService.price) 
-                                          : subService.price
-                                      )}
-                                    </span>
-                                    <span className="text-gray-300">|</span>
-                                    <span>{subService.duration} min</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  {isSelected && selectedItem && (
-                                    <div className="flex items-center gap-2">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleQuantityChange(subService.id, -1);
-                                        }}
-                                        className="p-1 rounded bg-gray-200 hover:bg-gray-300 transition-colors"
-                                      >
-                                        <span className="w-4 h-4 flex items-center justify-center text-gray-600">-</span>
-                                      </button>
-                                      <span className="w-8 text-center font-medium">{selectedItem.quantity}</span>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleQuantityChange(subService.id, 1);
-                                        }}
-                                        className="p-1 rounded bg-gray-200 hover:bg-gray-300 transition-colors"
-                                      >
-                                        <span className="w-4 h-4 flex items-center justify-center text-gray-600">+</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                  <button
-                                    onClick={() => handleItemToggle(subService, service.name)}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                      isSelected
-                                        ? "bg-gray-900 text-white"
-                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                    }`}
-                                  >
-                                    {isSelected ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {selectedItems.length > 0 && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">
-                        {selectedItems.length} service(s), {selectedItems.reduce((sum, i) => sum + i.quantity, 0)} item(s)
-                      </span>
-                      <span className="font-medium text-gray-900">Subtotal: {formatCurrency(getSubtotal())}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Estimated duration: {getTotalDuration()} minutes
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <ServiceStep
+            vendorDetails={selectedVendorDetails}
+            selectedItems={selectedItems}
+            expandedServices={expandedServices}
+            onToggleServiceExpanded={toggleServiceExpanded}
+            onItemToggle={handleItemToggle}
+            onQuantityChange={handleQuantityChange}
+            formatCurrency={formatCurrency}
+            subtotal={subtotal}
+            totalDuration={totalDuration}
+          />
         );
-
       case 4:
         return renderCheckoutContent();
-
       default:
         return null;
     }
@@ -805,455 +453,74 @@ export default function NewOrderPage() {
     switch (checkoutSubStep) {
       case 1:
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Service Address</h2>
-              {addresses.length === 0 ? (
-                <div className="text-center py-6 border border-gray-200 rounded-lg">
-                  <MapPin className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500 mb-3">No addresses saved</p>
-                  <Link
-                    href="/customer/addresses"
-                    className="text-sm font-medium text-gray-900 hover:underline"
-                  >
-                    Add an address
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {addresses.map((addr) => (
-                    <button
-                      key={addr.id}
-                      onClick={() => setSelectedAddress(addr.id)}
-                      className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                        selectedAddress === addr.id
-                          ? "border-gray-900 bg-gray-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <MapPin className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-gray-900">{addr.label}</p>
-                            {addr.is_primary && (
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Default</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-500 truncate">{addr.street_address}, {addr.city}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Schedule Type</h2>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: "now", label: "Order Now", desc: "As soon as possible" },
-                  { id: "schedule", label: "Schedule Later", desc: "Pick date & time" },
-                  { id: "recurring", label: "Recurring", desc: "Set frequency" },
-                ].map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => setOrderType(type.id as typeof orderType)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      orderType === type.id
-                        ? "border-gray-900 bg-gray-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <p className="font-medium text-gray-900 text-sm">{type.label}</p>
-                    <p className="text-xs text-gray-500">{type.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {orderType !== "now" && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  {orderType === "recurring" ? "First Appointment" : "Select Date & Time"}
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Calendar className="h-4 w-4 inline mr-1" />
-                      Select Date
-                    </label>
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Clock className="h-4 w-4 inline mr-1" />
-                      Select Time
-                    </label>
-                    <select
-                      value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    >
-                      <option value="">Choose a time</option>
-                      {timeSlots.map((slot) => (
-                        <option key={slot} value={slot}>
-                          {slot}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {orderType === "recurring" && (
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Recurring Frequency</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { id: "daily", label: "Daily", desc: "Every day" },
-                    { id: "weekly", label: "Weekly", desc: "Every week" },
-                    { id: "biweekly", label: "Bi-weekly", desc: "Every 2 weeks" },
-                    { id: "monthly", label: "Monthly", desc: "Every month" },
-                  ].map((freq) => (
-                    <button
-                      key={freq.id}
-                      onClick={() => setRecurringFrequency(freq.id as typeof recurringFrequency)}
-                      className={`p-4 rounded-lg border-2 text-left transition-all ${
-                        recurringFrequency === freq.id
-                          ? "border-gray-900 bg-gray-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <p className="font-medium text-gray-900 text-sm">{freq.label}</p>
-                      <p className="text-xs text-gray-500">{freq.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <AddressScheduleStep
+            addresses={addresses}
+            selectedAddress={selectedAddress}
+            onSelectAddress={setSelectedAddress}
+            orderType={orderType}
+            onOrderTypeChange={setOrderType}
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            selectedTime={selectedTime}
+            onTimeChange={setSelectedTime}
+            recurringFrequency={recurringFrequency}
+            onFrequencyChange={setRecurringFrequency}
+          />
         );
-
       case 2:
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h2>
-
-              <div className="space-y-3 mb-6">
-                <button
-                  onClick={() => {
-                    setPaymentType("card");
-                    setPointsToRedeem(0);
-                    setPointsDiscount(0);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                    paymentType === "card"
-                      ? "border-gray-900 bg-gray-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-5 w-5 text-gray-400" />
-                    <span className="font-medium text-gray-900">Pay with Card</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setPaymentType("cash");
-                    setPointsToRedeem(0);
-                    setPointsDiscount(0);
-                  }}
-                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                    paymentType === "cash"
-                      ? "border-gray-900 bg-gray-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Banknote className="h-5 w-5 text-gray-400" />
-                    <span className="font-medium text-gray-900">Cash on Delivery</span>
-                  </div>
-                </button>
-
-                {pointsBalance && pointsBalance.available_points > 0 && (
-                  <button
-                    onClick={handlePointsPaymentSelect}
-                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                      paymentType === "points"
-                        ? "border-gray-900 bg-gray-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Coins className="h-5 w-5 text-gray-400" />
-                        <span className="font-medium text-gray-900">Redeem Points</span>
-                      </div>
-                      <span className="text-sm text-gray-500">{pointsBalance.available_points.toLocaleString()} pts</span>
-                    </div>
-                  </button>
-                )}
-              </div>
-
-              {/* Points remaining payment options */}
-              {paymentType === "points" && !isFullyPaidWithPoints() && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 mb-3">
-                    Your points cover <span className="font-medium">{formatCurrency(pointsDiscount)}</span>.
-                    Pay remaining <span className="font-medium">{formatCurrency(getTotal())}</span> with:
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setPointsRemainingPayment("card")}
-                      className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        pointsRemainingPayment === "card"
-                          ? "border-gray-900 bg-white"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      Card
-                    </button>
-                    <button
-                      onClick={() => setPointsRemainingPayment("cash")}
-                      className={`flex-1 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        pointsRemainingPayment === "cash"
-                          ? "border-gray-900 bg-white"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      Cash on Delivery
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {(paymentType === "card" || (paymentType === "points" && !isFullyPaidWithPoints() && pointsRemainingPayment === "card")) && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-3">Select a saved card</p>
-                  {paymentMethods.length === 0 ? (
-                    <div className="text-center py-6 border border-gray-200 rounded-lg">
-                      <CreditCard className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                      <p className="text-gray-500 mb-3">No cards saved</p>
-                      <Link
-                        href="/customer/settings/payments"
-                        className="text-sm font-medium text-gray-900 hover:underline"
-                      >
-                        Add a card
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {paymentMethods.map((pm) => (
-                        <button
-                          key={pm.id}
-                          onClick={() => setSelectedPaymentMethod(pm.id)}
-                          className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                            selectedPaymentMethod === pm.id
-                              ? "border-gray-900 bg-gray-50"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <CreditCard className="h-5 w-5 text-gray-400" />
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                {pm.brand.charAt(0).toUpperCase() + pm.brand.slice(1)} **** {pm.last4}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Expires {pm.expiry_month}/{pm.expiry_year}
-                              </p>
-                            </div>
-                            {pm.is_default && (
-                              <span className="ml-auto text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                                Default
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Coupon Code</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  placeholder="Enter coupon code"
-                  disabled={!!appliedCoupon}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100"
-                />
-                {appliedCoupon ? (
-                  <button
-                    onClick={handleRemoveCoupon}
-                    className="px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50"
-                  >
-                    Remove
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleApplyCoupon}
-                    disabled={couponLoading || !couponCode.trim()}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {couponLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-                  </button>
-                )}
-              </div>
-              {couponError && <p className="text-sm text-red-600 mt-1">{couponError}</p>}
-              {appliedCoupon && (
-                <p className="text-sm text-green-600 mt-1">
-                  Coupon applied! You save {formatCurrency(appliedCoupon.discount)}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Special Instructions (Optional)</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Any special instructions for the technician..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                rows={3}
-              />
-            </div>
-          </div>
+          <PaymentStep
+            paymentMethods={paymentMethods}
+            paymentType={paymentType}
+            onPaymentTypeChange={setPaymentType}
+            selectedPaymentMethod={selectedPaymentMethod}
+            onSelectPaymentMethod={setSelectedPaymentMethod}
+            pointsBalance={pointsBalance}
+            pointsToRedeem={pointsToRedeem}
+            pointsDiscount={pointsDiscount}
+            onPointsPaymentSelect={handlePointsPaymentSelect}
+            onClearPoints={handleClearPoints}
+            isFullyPaidWithPoints={isFullyPaidWithPoints()}
+            pointsRemainingPayment={pointsRemainingPayment}
+            onPointsRemainingPaymentChange={setPointsRemainingPayment}
+            couponCode={couponCode}
+            onCouponCodeChange={setCouponCode}
+            appliedCoupon={appliedCoupon}
+            couponError={couponError}
+            couponLoading={couponLoading}
+            onApplyCoupon={() => handleApplyCoupon(subtotal)}
+            onRemoveCoupon={handleRemoveCoupon}
+            notes={notes}
+            onNotesChange={setNotes}
+            formatCurrency={formatCurrency}
+            remainingAmount={total}
+          />
         );
-
       case 3:
-        const selectedAddressData = addresses.find((a) => a.id === selectedAddress);
-        const selectedPaymentData = paymentMethods.find((p) => p.id === selectedPaymentMethod);
-
         return (
-          <div className="space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
-
-            <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Vendor</p>
-                <p className="font-medium text-gray-900">{selectedVendorDetails?.name}</p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 mb-2">Services</p>
-                {selectedItems.map((item) => (
-                  <div key={item.subService.id} className="flex justify-between text-sm py-1">
-                    <span>
-                      {item.subService.name}
-                      {item.quantity > 1 && <span className="text-gray-500"> x{item.quantity}</span>}
-                    </span>
-                    <span className="font-medium">
-                      {formatCurrency(
-                        (typeof item.subService.price === 'string' 
-                          ? parseFloat(item.subService.price) 
-                          : item.subService.price) * item.quantity
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Address</p>
-                <p className="text-sm text-gray-900">
-                  {selectedAddressData?.street_address}, {selectedAddressData?.city}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Schedule</p>
-                <p className="text-sm text-gray-900">
-                  {orderType === "now"
-                    ? "As soon as possible"
-                    : orderType === "recurring"
-                    ? `${selectedDate} at ${selectedTime} (${recurringFrequency})`
-                    : `${selectedDate} at ${selectedTime}`}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Payment</p>
-                <p className="text-sm text-gray-900">
-                  {paymentType === "points" ? (
-                    isFullyPaidWithPoints() ? (
-                      "Fully Paid with Points"
-                    ) : (
-                      <>
-                        {pointsToRedeem.toLocaleString()} Points + {pointsRemainingPayment === "card" && selectedPaymentData
-                          ? `${selectedPaymentData.brand.charAt(0).toUpperCase() + selectedPaymentData.brand.slice(1)} **** ${selectedPaymentData.last4}`
-                          : "Cash on Delivery"}
-                      </>
-                    )
-                  ) : paymentType === "card" && selectedPaymentData ? (
-                    `${selectedPaymentData.brand.charAt(0).toUpperCase() + selectedPaymentData.brand.slice(1)} **** ${selectedPaymentData.last4}`
-                  ) : (
-                    "Cash on Delivery"
-                  )}
-                </p>
-              </div>
-
-              {notes && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Notes</p>
-                  <p className="text-sm text-gray-900">{notes}</p>
-                </div>
-              )}
-
-              <div className="pt-4 border-t border-gray-200 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span>{formatCurrency(getSubtotal())}</span>
-                </div>
-                {appliedCoupon && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Discount ({appliedCoupon.code})</span>
-                    <span>-{formatCurrency(appliedCoupon.discount)}</span>
-                  </div>
-                )}
-                {(() => {
-                  const vatSettings = getVatSettings();
-                  if (vatSettings && vatSettings.vat_enabled && getTax() > 0) {
-                    return (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">VAT ({vatSettings.vat_rate}%)</span>
-                        <span>{formatCurrency(getTax())}</span>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-                {pointsToRedeem > 0 && (
-                  <div className="flex justify-between text-sm text-amber-600">
-                    <span>Points Redeemed ({pointsToRedeem.toLocaleString()} pts)</span>
-                    <span>-{formatCurrency(pointsDiscount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-medium text-base pt-2 border-t border-gray-200">
-                  <span>Total to Pay</span>
-                  <span>{formatCurrency(getTotal())}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SummaryStep
+            vendorDetails={selectedVendorDetails}
+            selectedItems={selectedItems}
+            selectedAddress={addresses.find((a) => a.id === selectedAddress)}
+            orderType={orderType}
+            selectedDate={selectedDate}
+            selectedTime={selectedTime}
+            recurringFrequency={recurringFrequency}
+            paymentType={paymentType}
+            selectedPaymentMethod={paymentMethods.find((p) => p.id === selectedPaymentMethod)}
+            pointsToRedeem={pointsToRedeem}
+            pointsDiscount={pointsDiscount}
+            isFullyPaidWithPoints={isFullyPaidWithPoints()}
+            pointsRemainingPayment={pointsRemainingPayment}
+            appliedCoupon={appliedCoupon}
+            notes={notes}
+            subtotal={subtotal}
+            tax={tax}
+            total={total}
+            vatSettings={vatSettings}
+            formatCurrency={formatCurrency}
+          />
         );
-
       default:
         return null;
     }
@@ -1263,69 +530,20 @@ export default function NewOrderPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link
-          href="/customer/orders"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
+        <Link href="/customer/orders" className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ArrowLeft className="h-5 w-5 text-gray-600" />
         </Link>
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">New Order</h1>
           <p className="text-sm text-gray-500">
-            Step {currentStep} of {steps.length}
-            {currentStep === 4 && ` - ${checkoutSubSteps[checkoutSubStep - 1].name}`}
+            Step {currentStep} of {ORDER_STEPS.length}
+            {currentStep === 4 && ` - ${["Address & Schedule", "Payment", "Summary"][checkoutSubStep - 1]}`}
           </p>
         </div>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-start pb-2 overflow-x-auto">
-        {steps.map((step, idx) => (
-          <div key={step.id} className="flex items-center flex-1 last:flex-none min-w-0">
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0 ${
-                  currentStep > step.id
-                    ? "bg-gray-900 text-white"
-                    : currentStep === step.id
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                {currentStep > step.id ? <Check className="h-4 w-4" /> : step.id}
-              </div>
-              <span className="text-xs text-gray-500 mt-1 hidden sm:block whitespace-nowrap">{step.name}</span>
-            </div>
-            {idx < steps.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-2 mt-4 min-w-4 ${currentStep > step.id ? "bg-gray-900" : "bg-gray-200"}`} />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Checkout Sub-steps */}
-      {currentStep === 4 && (
-        <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg">
-          {checkoutSubSteps.map((subStep, idx) => (
-            <div key={subStep.id} className="flex items-center">
-              <div
-                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  checkoutSubStep > subStep.id
-                    ? "bg-gray-900 text-white"
-                    : checkoutSubStep === subStep.id
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                {subStep.name}
-              </div>
-              {idx < checkoutSubSteps.length - 1 && (
-                <ArrowRight className="h-4 w-4 text-gray-300 mx-1" />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Step Indicator */}
+      <OrderStepIndicator currentStep={currentStep} checkoutSubStep={checkoutSubStep} />
 
       {/* Error Display */}
       {error && (
