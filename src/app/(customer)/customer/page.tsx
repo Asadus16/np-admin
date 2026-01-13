@@ -1,89 +1,52 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   DollarSign,
   Gift,
   ShoppingCart,
   Star,
   TrendingUp,
+  TrendingDown,
   ArrowRight,
   Clock,
   CheckCircle,
   MapPin,
   Plus,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
-
-// Static data
-const stats = {
-  totalSpent: 4250,
-  pointsEarned: 1850,
-  activeOrders: 2,
-  completedOrders: 24,
-};
-
-const recentOrders = [
-  {
-    id: "ORD-2024-001",
-    vendor: "Quick Fix Plumbing",
-    service: "Pipe Repair",
-    date: "Dec 28, 2024",
-    amount: 350,
-    status: "completed",
-  },
-  {
-    id: "ORD-2024-002",
-    vendor: "Spark Electric Co",
-    service: "Electrical Inspection",
-    date: "Dec 27, 2024",
-    amount: 200,
-    status: "in_progress",
-  },
-  {
-    id: "ORD-2024-003",
-    vendor: "Cool Air HVAC",
-    service: "AC Maintenance",
-    date: "Dec 25, 2024",
-    amount: 450,
-    status: "completed",
-  },
-  {
-    id: "ORD-2024-004",
-    vendor: "Green Clean Services",
-    service: "Deep Cleaning",
-    date: "Dec 22, 2024",
-    amount: 280,
-    status: "completed",
-  },
-];
-
-const topVendors = [
-  { id: 1, name: "Quick Fix Plumbing", category: "Plumbing", rating: 4.9, orders: 8 },
-  { id: 2, name: "Spark Electric Co", category: "Electrical", rating: 4.8, orders: 5 },
-  { id: 3, name: "Cool Air HVAC", category: "HVAC", rating: 4.7, orders: 4 },
-  { id: 4, name: "Green Clean Services", category: "Cleaning", rating: 4.9, orders: 7 },
-];
-
-const upcomingServices = [
-  {
-    id: 1,
-    vendor: "Cool Air HVAC",
-    service: "Quarterly AC Service",
-    date: "Jan 5, 2025",
-    time: "10:00 AM",
-    type: "subscription",
-  },
-  {
-    id: 2,
-    vendor: "Green Clean Services",
-    service: "Weekly Home Cleaning",
-    date: "Jan 2, 2025",
-    time: "9:00 AM",
-    type: "subscription",
-  },
-];
+import { useAuth } from "@/hooks/useAuth";
+import { getCustomerDashboardData, CustomerDashboardData } from "@/lib/customerDashboard";
 
 export default function CustomerDashboardPage() {
+  const { token } = useAuth();
+  const [dashboardData, setDashboardData] = useState<CustomerDashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!token) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        const response = await getCustomerDashboardData(token);
+        if (response.status === 'success') {
+          setDashboardData(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+        setError('Failed to load dashboard data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [token]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-AE", {
       style: "currency",
@@ -109,6 +72,20 @@ export default function CustomerDashboardPage() {
             In Progress
           </span>
         );
+      case "confirmed":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Confirmed
+          </span>
+        );
+      case "pending":
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </span>
+        );
       case "scheduled":
         return (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -124,6 +101,47 @@ export default function CustomerDashboardPage() {
         );
     }
   };
+
+  const getTrendIcon = (trend: 'up' | 'down' | 'neutral') => {
+    if (trend === 'up') {
+      return <TrendingUp className="h-4 w-4 mr-1" />;
+    } else if (trend === 'down') {
+      return <TrendingDown className="h-4 w-4 mr-1" />;
+    }
+    return null;
+  };
+
+  const getTrendColor = (trend: 'up' | 'down' | 'neutral') => {
+    if (trend === 'up') return 'text-green-600';
+    if (trend === 'down') return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-gray-500">{error || 'Failed to load dashboard'}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { stats, recent_orders, top_vendors, upcoming_services } = dashboardData;
 
   return (
     <div className="space-y-6">
@@ -149,13 +167,15 @@ export default function CustomerDashboardPage() {
             <div className="p-2 bg-gray-100 rounded-lg">
               <DollarSign className="h-5 w-5 text-gray-600" />
             </div>
-            <div className="flex items-center text-sm font-medium text-green-600">
-              <TrendingUp className="h-4 w-4 mr-1" />
-              +12%
-            </div>
+            {stats.spent_change && (
+              <div className={`flex items-center text-sm font-medium ${getTrendColor(stats.spent_change.trend)}`}>
+                {getTrendIcon(stats.spent_change.trend)}
+                {stats.spent_change.value}
+              </div>
+            )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-semibold text-gray-900">{formatCurrency(stats.totalSpent)}</p>
+            <p className="text-2xl font-semibold text-gray-900">{formatCurrency(stats.total_spent)}</p>
             <p className="text-sm text-gray-500">Total Spent</p>
           </div>
         </div>
@@ -165,14 +185,16 @@ export default function CustomerDashboardPage() {
             <div className="p-2 bg-gray-100 rounded-lg">
               <Gift className="h-5 w-5 text-gray-600" />
             </div>
-            <div className="flex items-center text-sm font-medium text-green-600">
-              <TrendingUp className="h-4 w-4 mr-1" />
-              +150
-            </div>
+            {stats.recent_points_earned > 0 && (
+              <div className="flex items-center text-sm font-medium text-green-600">
+                <TrendingUp className="h-4 w-4 mr-1" />
+                +{stats.recent_points_earned}
+              </div>
+            )}
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-semibold text-gray-900">{stats.pointsEarned.toLocaleString()} pts</p>
-            <p className="text-sm text-gray-500">Points Earned</p>
+            <p className="text-2xl font-semibold text-gray-900">{stats.points_balance.toLocaleString()} pts</p>
+            <p className="text-sm text-gray-500">Points Balance</p>
           </div>
         </Link>
 
@@ -183,7 +205,7 @@ export default function CustomerDashboardPage() {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-semibold text-gray-900">{stats.activeOrders}</p>
+            <p className="text-2xl font-semibold text-gray-900">{stats.active_orders}</p>
             <p className="text-sm text-gray-500">Active Orders</p>
           </div>
         </Link>
@@ -195,7 +217,7 @@ export default function CustomerDashboardPage() {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-2xl font-semibold text-gray-900">{stats.completedOrders}</p>
+            <p className="text-2xl font-semibold text-gray-900">{stats.completed_orders}</p>
             <p className="text-sm text-gray-500">Completed Orders</p>
           </div>
         </div>
@@ -218,27 +240,36 @@ export default function CustomerDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentOrders.map((order) => (
-              <Link
-                key={order.id}
-                href={`/customer/orders/${order.id}`}
-                className="p-4 flex items-center justify-between hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <ShoppingCart className="h-5 w-5 text-gray-500" />
+            {recent_orders.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                <p>No orders yet</p>
+                <Link href="/customer/orders/new" className="text-sm text-gray-900 hover:underline mt-1 inline-block">
+                  Place your first order
+                </Link>
+              </div>
+            ) : (
+              recent_orders.map((order) => (
+                <Link
+                  key={order.id}
+                  href={`/customer/orders/${order.id}`}
+                  className="p-4 flex items-center justify-between hover:bg-gray-50"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <ShoppingCart className="h-5 w-5 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{order.vendor}</p>
+                      <p className="text-xs text-gray-500">{order.service} &bull; {order.date}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{order.vendor}</p>
-                    <p className="text-xs text-gray-500">{order.service} &bull; {order.date}</p>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">{formatCurrency(order.amount)}</p>
+                    {getStatusBadge(order.status)}
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{formatCurrency(order.amount)}</p>
-                  {getStatusBadge(order.status)}
-                </div>
-              </Link>
-            ))}
+                </Link>
+              ))
+            )}
           </div>
         </div>
 
@@ -257,28 +288,35 @@ export default function CustomerDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {topVendors.map((vendor) => (
-              <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-600">
-                      {vendor.name.charAt(0)}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
-                    <p className="text-xs text-gray-500">{vendor.category}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center text-sm text-amber-600">
-                    <Star className="h-3 w-3 mr-1 fill-current" />
-                    {vendor.rating}
-                  </div>
-                  <p className="text-xs text-gray-500">{vendor.orders} orders</p>
-                </div>
+            {top_vendors.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                <p>No favorite vendors yet</p>
+                <p className="text-xs mt-1">Complete orders to see your top vendors</p>
               </div>
-            ))}
+            ) : (
+              top_vendors.map((vendor) => (
+                <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <span className="text-sm font-medium text-gray-600">
+                        {vendor.name.charAt(0)}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
+                      <p className="text-xs text-gray-500">{vendor.category}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center text-sm text-amber-600">
+                      <Star className="h-3 w-3 mr-1 fill-current" />
+                      {vendor.rating > 0 ? vendor.rating : '-'}
+                    </div>
+                    <p className="text-xs text-gray-500">{vendor.orders} orders</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -298,23 +336,30 @@ export default function CustomerDashboardPage() {
           </Link>
         </div>
         <div className="divide-y divide-gray-100">
-          {upcomingServices.map((service) => (
-            <div key={service.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-gray-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{service.service}</p>
-                  <p className="text-xs text-gray-500">{service.vendor}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{service.date}</p>
-                <p className="text-xs text-gray-500">{service.time}</p>
-              </div>
+          {upcoming_services.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              <p>No upcoming services</p>
+              <p className="text-xs mt-1">Schedule an order or set up a subscription</p>
             </div>
-          ))}
+          ) : (
+            upcoming_services.map((service) => (
+              <div key={service.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{service.service}</p>
+                    <p className="text-xs text-gray-500">{service.vendor}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">{service.date}</p>
+                  <p className="text-xs text-gray-500">{service.time}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

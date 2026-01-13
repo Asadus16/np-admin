@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Store,
   FolderOpen,
@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Wallet,
   FileText,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -33,64 +34,20 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  getDashboardData,
+  DashboardData,
+  RevenueChartData,
+  ApplicationsChartData,
+  CategoryDistributionData,
+  RecentVendor,
+  RecentTransaction,
+  PendingRefund,
+} from "@/lib/adminDashboard";
 
 // Professional gray color palette
 const GRAY_COLORS = ["#111827", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"];
-
-// Static data
-const revenueData = [
-  { month: "Jul", revenue: 42000 },
-  { month: "Aug", revenue: 38000 },
-  { month: "Sep", revenue: 51000 },
-  { month: "Oct", revenue: 47000 },
-  { month: "Nov", revenue: 53000 },
-  { month: "Dec", revenue: 58000 },
-];
-
-const applicationData = [
-  { month: "Jul", approved: 12, pending: 5, rejected: 2 },
-  { month: "Aug", approved: 15, pending: 8, rejected: 3 },
-  { month: "Sep", approved: 18, pending: 6, rejected: 4 },
-  { month: "Oct", approved: 14, pending: 9, rejected: 2 },
-  { month: "Nov", approved: 20, pending: 7, rejected: 3 },
-  { month: "Dec", approved: 22, pending: 10, rejected: 5 },
-];
-
-const categoryDistribution: Array<{ name: string; value: number; [key: string]: string | number }> = [
-  { name: "Plumbing", value: 45 },
-  { name: "Electrical", value: 32 },
-  { name: "HVAC", value: 28 },
-  { name: "Landscaping", value: 22 },
-  { name: "Cleaning", value: 18 },
-  { name: "Other", value: 15 },
-];
-
-const recentVendors = [
-  { id: 1, name: "Quick Fix Plumbing", status: "approved" as const, date: "2024-12-28", category: "Plumbing" },
-  { id: 2, name: "Spark Electric Co", status: "pending" as const, date: "2024-12-27", category: "Electrical" },
-  { id: 3, name: "Cool Air HVAC", status: "approved" as const, date: "2024-12-26", category: "HVAC" },
-  { id: 4, name: "Green Thumb Gardens", status: "rejected" as const, date: "2024-12-25", category: "Landscaping" },
-];
-
-const recentTransactions = [
-  { id: 1, vendor: "Quick Fix Plumbing", amount: "$1,250", type: "Payout" as const, date: "2024-12-28" },
-  { id: 2, vendor: "Spark Electric Co", amount: "$85", type: "Fee" as const, date: "2024-12-27" },
-  { id: 3, vendor: "Cool Air HVAC", amount: "$2,100", type: "Payout" as const, date: "2024-12-26" },
-  { id: 4, vendor: "Green Thumb Gardens", amount: "$45", type: "Fee" as const, date: "2024-12-25" },
-];
-
-const pendingRefunds = [
-  { id: "REF-001", orderId: "ORD-1234", customer: "John Smith", vendor: "Quick Fix Plumbing", amount: "$150", type: "Partial", reason: "Service incomplete", status: "pending", date: "2024-12-28" },
-  { id: "REF-002", orderId: "ORD-1230", customer: "Sarah Johnson", vendor: "Spark Electric Co", amount: "$350", type: "Full", reason: "No show", status: "pending", date: "2024-12-27" },
-  { id: "REF-003", orderId: "ORD-1225", customer: "Mike Brown", vendor: "Cool Air HVAC", amount: "$85", type: "Partial", reason: "Quality issue", status: "pending", date: "2024-12-26" },
-];
-
-const quickStats = {
-  pendingApprovals: 12,
-  pendingRefunds: 8,
-  payoutsDue: 15,
-  openDisputes: 3,
-};
 
 // Custom tooltip styles
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
@@ -110,7 +67,28 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function AdminDashboardPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('7d');
+  const { token } = useAuth();
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!token) return;
+
+      setLoading(true);
+      try {
+        const response = await getDashboardData(selectedPeriod, token);
+        setDashboardData(response.data);
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [token, selectedPeriod]);
 
   const handlePeriodChange = (period: '7d' | '30d' | '90d') => {
     setSelectedPeriod(period);
@@ -126,41 +104,70 @@ export default function AdminDashboardPage() {
     }).format(value);
   };
 
-  // Static stats cards
-  const statsCards = [
+  // Format number with commas
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('en-US').format(value);
+  };
+
+  // Stats cards
+  const statsCards = dashboardData ? [
     {
       name: "Total Customers",
-      value: "2,845",
-      change: "+18%",
-      trend: "up" as const,
+      value: formatNumber(dashboardData.stats.total_customers),
+      change: dashboardData.stats.customer_change.value,
+      trend: dashboardData.stats.customer_change.trend,
       icon: Users,
       href: "/admin/customers",
     },
     {
       name: "Total Vendors",
-      value: "156",
-      change: "+12%",
-      trend: "up" as const,
+      value: formatNumber(dashboardData.stats.total_vendors),
+      change: dashboardData.stats.vendor_change.value,
+      trend: dashboardData.stats.vendor_change.trend,
       icon: Store,
       href: "/admin/vendors",
     },
     {
       name: "Total Orders",
-      value: "1,247",
-      change: "+24%",
-      trend: "up" as const,
+      value: formatNumber(dashboardData.stats.total_orders),
+      change: dashboardData.stats.order_change.value,
+      trend: dashboardData.stats.order_change.trend,
       icon: ShoppingCart,
       href: "/admin/orders",
     },
     {
       name: "Total Revenue",
-      value: formatCurrency(284500),
-      change: "+15%",
-      trend: "up" as const,
+      value: formatCurrency(dashboardData.stats.total_revenue),
+      change: dashboardData.stats.revenue_change.value,
+      trend: dashboardData.stats.revenue_change.trend,
       icon: DollarSign,
       href: "/admin/transactions",
     },
-  ];
+  ] : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">Failed to load dashboard data</p>
+      </div>
+    );
+  }
+
+  const revenueData: RevenueChartData[] = dashboardData.revenue_chart;
+  const applicationData: ApplicationsChartData[] = dashboardData.applications_chart;
+  const categoryDistribution: CategoryDistributionData[] = dashboardData.category_distribution;
+  const recentVendors: RecentVendor[] = dashboardData.recent_vendors;
+  const recentTransactions: RecentTransaction[] = dashboardData.recent_transactions;
+  const quickStats = dashboardData.quick_stats;
+  const pendingRefunds: PendingRefund[] = dashboardData.pending_refunds;
 
   return (
     <div className="space-y-6">
@@ -201,14 +208,14 @@ export default function AdminDashboardPage() {
               </div>
               <div
                 className={`flex items-center text-sm font-medium ${
-                  stat.trend === "up" ? "text-gray-900" : "text-gray-500"
+                  stat.trend === "up" ? "text-gray-900" : stat.trend === "down" ? "text-red-600" : "text-gray-500"
                 }`}
               >
                 {stat.trend === "up" ? (
                   <TrendingUp className="h-4 w-4 mr-1" />
-                ) : (
+                ) : stat.trend === "down" ? (
                   <TrendingDown className="h-4 w-4 mr-1" />
-                )}
+                ) : null}
                 {stat.change}
               </div>
             </div>
@@ -357,7 +364,7 @@ export default function AdminDashboardPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={categoryDistribution}
+                    data={categoryDistribution as { name: string; value: number }[]}
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -461,11 +468,11 @@ export default function AdminDashboardPage() {
         <div className="bg-white border border-gray-200 rounded-lg">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
-              <p className="text-sm text-gray-500">Latest payouts and fees</p>
+              <h3 className="font-semibold text-gray-900">Recent Orders</h3>
+              <p className="text-sm text-gray-500">Latest completed orders</p>
             </div>
             <Link
-              href="/admin/transactions"
+              href="/admin/orders"
               className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
             >
               View all <ArrowRight className="h-4 w-4 ml-1" />
@@ -476,28 +483,22 @@ export default function AdminDashboardPage() {
               recentTransactions.slice(0, 4).map((transaction) => (
                 <div key={transaction.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      transaction.type === "Payout" ? "bg-gray-900" : "bg-gray-100"
-                    }`}>
-                      <DollarSign className={`h-4 w-4 ${
-                        transaction.type === "Payout" ? "text-white" : "text-gray-500"
-                      }`} />
+                    <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+                      <DollarSign className="h-4 w-4 text-white" />
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{transaction.vendor}</p>
                       <p className="text-xs text-gray-500">{transaction.type}</p>
                     </div>
                   </div>
-                  <span className={`text-sm font-medium ${
-                    transaction.type === "Payout" ? "text-gray-900" : "text-gray-500"
-                  }`}>
-                    {transaction.type === "Payout" ? "-" : "+"}{transaction.amount}
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatCurrency(transaction.amount)}
                   </span>
                 </div>
               ))
             ) : (
               <div className="p-8 text-center text-gray-400 text-sm">
-                No recent transactions
+                No recent orders
               </div>
             )}
           </div>
@@ -515,7 +516,7 @@ export default function AdminDashboardPage() {
               <FileText className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{quickStats.pendingApprovals}</p>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pending_approvals}</p>
               <p className="text-xs text-gray-500">Pending Approvals</p>
             </div>
           </div>
@@ -529,7 +530,7 @@ export default function AdminDashboardPage() {
               <RotateCcw className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{quickStats.pendingRefunds}</p>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pending_refunds}</p>
               <p className="text-xs text-gray-500">Pending Refunds</p>
             </div>
           </div>
@@ -543,13 +544,13 @@ export default function AdminDashboardPage() {
               <Wallet className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{quickStats.payoutsDue}</p>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.payouts_due}</p>
               <p className="text-xs text-gray-500">Payouts Due</p>
             </div>
           </div>
         </Link>
         <Link
-          href="/admin/refunds?status=dispute"
+          href="/admin/refunds?status=pending"
           className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -557,7 +558,7 @@ export default function AdminDashboardPage() {
               <AlertTriangle className="h-5 w-5 text-gray-600" />
             </div>
             <div>
-              <p className="text-2xl font-semibold text-gray-900">{quickStats.openDisputes}</p>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.open_disputes}</p>
               <p className="text-xs text-gray-500">Open Disputes</p>
             </div>
           </div>
@@ -579,51 +580,45 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Refund ID</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Order</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Customer</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Vendor</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Type</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Reason</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Date</th>
-                <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {pendingRefunds.map((refund) => (
-                <tr key={refund.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{refund.orderId}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{refund.customer}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{refund.vendor}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.amount}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                      refund.type === "Full" ? "bg-gray-900 text-white" : "bg-gray-200 text-gray-700"
-                    }`}>
-                      {refund.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{refund.reason}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{refund.date}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button className="px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded hover:bg-gray-800">
-                        Approve
-                      </button>
-                      <button className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                        Reject
-                      </button>
-                    </div>
-                  </td>
+          {pendingRefunds.length > 0 ? (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Order</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Customer</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Vendor</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Reason</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Date</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pendingRefunds.map((refund) => (
+                  <tr key={refund.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.order_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.customer}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.vendor}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(refund.amount)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.reason}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{refund.date}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/refunds/${refund.id}`}
+                        className="px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded hover:bg-gray-800"
+                      >
+                        Review
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              No pending refund requests
+            </div>
+          )}
         </div>
       </div>
 
