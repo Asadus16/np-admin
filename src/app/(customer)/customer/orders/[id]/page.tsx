@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { getOrder, cancelOrder } from "@/lib/order";
 import { Order } from "@/types/order";
 import { useAppDispatch } from "@/store/hooks";
-import { startOrGetConversation } from "@/store/slices/chatSlice";
+import { startOrGetConversation, sendMessage } from "@/store/slices/chatSlice";
 import { ReviewModal } from "@/components/reviews/ReviewModal";
 import { canReviewOrder, createReview, getOrderReviews } from "@/lib/review";
 import { ReviewType, Review } from "@/types/review";
@@ -86,6 +86,37 @@ export default function OrderDetailsPage() {
     checkReviewStatus();
   }, [order, orderId, hasCheckedReview]);
 
+  // Close conversation when order is completed
+  useEffect(() => {
+    const closeConversationOnCompletion = async () => {
+      if (!order || order.status !== "completed" || !order.vendor?.user_id) return;
+
+      const conversationClosedKey = `conversation_closed_${orderId}`;
+      // Check if we've already closed the conversation for this order
+      if (sessionStorage.getItem(conversationClosedKey)) return;
+
+      try {
+        // Get or start conversation with vendor
+        const conversation = await dispatch(startOrGetConversation(order.vendor.user_id.toString())).unwrap();
+        
+        // Send closing message
+        const closingMessage = `This conversation is now closed as order ${order.order_number} has been completed. Thank you for your business!`;
+        
+        await dispatch(sendMessage({
+          conversationId: conversation.id,
+          payload: { message: closingMessage }
+        })).unwrap();
+
+        // Mark conversation as closed for this order
+        sessionStorage.setItem(conversationClosedKey, "true");
+      } catch (err) {
+        console.error("Failed to close conversation:", err);
+      }
+    };
+
+    closeConversationOnCompletion();
+  }, [order, orderId, dispatch]);
+
   const loadOrder = async () => {
     setLoading(true);
     setError(null);
@@ -116,13 +147,46 @@ export default function OrderDetailsPage() {
   };
 
   const handleChatWithVendor = async () => {
-    if (!order?.vendor?.user_id) return;
+    if (!order?.vendor?.user_id || !order) return;
+    
+    // Prevent chat if order is completed
+    if (order.status === "completed") {
+      return;
+    }
+    
     try {
       await dispatch(startOrGetConversation(order.vendor.user_id.toString())).unwrap();
       router.push("/customer/messages");
     } catch (err) {
       console.error("Failed to start conversation:", err);
     }
+  };
+
+  const formatOrderDetailsForChat = (order: Order): string => {
+    const items = order.items.map(item => 
+      `• ${item.sub_service_name} (${item.service_name}) - ${formatCurrency(item.total_price)}${item.quantity > 1 ? ` x${item.quantity}` : ''}`
+    ).join('\n');
+    
+    const addressParts = [
+      order.address.street_address,
+      order.address.building && `Building: ${order.address.building}`,
+      order.address.apartment && `Apt: ${order.address.apartment}`,
+      `${order.address.city}, ${order.address.emirate}`
+    ].filter(Boolean).join(', ');
+    
+    let message = `Hello! I'd like to discuss my order:\n\n` +
+           `📋 Order Number: ${order.order_number}\n` +
+           `📅 Scheduled: ${formatDate(order.scheduled_date)} at ${order.scheduled_time}\n` +
+           `📍 Address: ${addressParts}\n` +
+           `💰 Total: ${formatCurrency(order.total)}\n` +
+           `📦 Services:\n${items}\n` +
+           `\nStatus: ${order.status.charAt(0).toUpperCase() + order.status.slice(1)}`;
+    
+    if (order.notes) {
+      message += `\n\nNote: ${order.notes}`;
+    }
+    
+    return message;
   };
 
   const handleChatWithTechnician = async () => {
