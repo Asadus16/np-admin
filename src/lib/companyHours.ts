@@ -9,7 +9,9 @@ import {
 } from '@/types/companyHours';
 import { getAuthFromStorage, ApiException } from './auth';
 
-const API_URL = '/api';
+import { API_BASE_URL } from '@/config';
+
+const API_URL = API_BASE_URL;
 
 async function getAuthToken(): Promise<string> {
   const auth = getAuthFromStorage();

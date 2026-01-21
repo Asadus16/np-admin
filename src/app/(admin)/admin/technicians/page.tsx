@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, Eye, Star, Loader2, Users, MoreVertical, Ban, UserCheck } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Technician {

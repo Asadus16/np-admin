@@ -1,9 +1,10 @@
 import { User, Role, LoginCredentials, RegisterCredentials, AuthResponse, getPrimaryRole } from '@/types/auth';
-import { api, ApiException } from './api';
+import api, { ApiException } from './api';
+import { API_BASE_URL } from '@/config';
 
 const AUTH_STORAGE_KEY = 'np_admin_auth';
 const TOKEN_STORAGE_KEY = 'np_admin_token';
-const API_URL = '/api';
+const API_URL = API_BASE_URL;
 
 // API Auth Functions
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {

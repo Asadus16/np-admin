@@ -1,6 +1,8 @@
 import { getAuthFromStorage, ApiException } from './auth';
 
-const API_URL = '/api';
+import { API_BASE_URL } from '@/config';
+
+const API_URL = API_BASE_URL;
 
 export interface PaymentMethod {
   id: string;

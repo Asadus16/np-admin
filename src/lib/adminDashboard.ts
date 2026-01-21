@@ -1,4 +1,4 @@
-import { api } from './api';
+import api from './api';
 
 // Types for dashboard data
 export interface DashboardStats {

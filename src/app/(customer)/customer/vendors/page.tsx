@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Vendor {

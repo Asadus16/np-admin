@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, MoreVertical, Eye, Ban, UserCheck, Download, Loader2, MessageSquare } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useAppDispatch } from "@/store/hooks";
 import { startOrGetConversation } from "@/store/slices/chatSlice";

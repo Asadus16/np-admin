@@ -19,7 +19,7 @@ import {
   Loader2,
   Star,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 const MapComponent = dynamic(() => import("@/components/maps/LeafletMap"), {

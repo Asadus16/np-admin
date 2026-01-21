@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { STORAGE_BASE_URL } from "@/config";
 import Link from "next/link";
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -89,9 +90,7 @@ export default function CategoriesPage() {
   const getImageUrl = (imagePath: string | null) => {
     if (!imagePath) return null;
     if (imagePath.startsWith("http")) return imagePath;
-    // Use NEXT_PUBLIC_STORAGE_URL for direct image access (not through API proxy)
-    const storageUrl = process.env.NEXT_PUBLIC_STORAGE_URL || "";
-    return `${storageUrl}/storage/${imagePath}`;
+    return `${STORAGE_BASE_URL}/storage/${imagePath}`;
   };
 
   return (

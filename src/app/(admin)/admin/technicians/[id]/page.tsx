@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Star, Phone, Mail, Calendar, Briefcase, Loader2, Ban, UserCheck, ClipboardList, MessageSquare, Award, Wrench, CreditCard } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Technician {

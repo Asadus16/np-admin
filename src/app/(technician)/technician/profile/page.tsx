@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { getUserFullName } from "@/types/auth";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { updateUser, refreshUser } from "@/store/slices/authSlice";
 

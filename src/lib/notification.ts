@@ -5,7 +5,7 @@ import {
   NotificationActionResponse,
 } from "@/types/notification";
 
-const API_BASE_URL = '/api';
+import { API_BASE_URL } from '@/config';
 const TOKEN_STORAGE_KEY = 'np_admin_token';
 
 async function getAuthToken(): Promise<string | null> {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Search, Download, Calendar, User, Activity, ChevronLeft, ChevronRight, RefreshCw, Radio } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AuditLog,

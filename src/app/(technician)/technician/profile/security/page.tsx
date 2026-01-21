@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Lock, Eye, EyeOff, Shield, Smartphone, AlertTriangle, Loader2, CheckCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function SecurityPage() {
