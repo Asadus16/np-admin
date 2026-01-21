@@ -1,38 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Upload, Plus, X } from "lucide-react";
+import { ArrowLeft, Upload, X, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { createService } from "@/lib/service";
+import { getPublicCategories } from "@/lib/category";
+import { Category } from "@/types/category";
+import { ApiException } from "@/lib/auth";
 
 export default function AddServicePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    price: "",
-    duration: "60",
-    category: "",
-    status: "active",
+    category_id: "",
+    status: true,
   });
-  const [addons, setAddons] = useState<{ name: string; price: string }[]>([]);
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const handleAddAddon = () => {
-    setAddons([...addons, { name: "", price: "" }]);
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      const response = await getPublicCategories(1);
+      // Fetch all pages if needed
+      let allCategories = [...response.data];
+      if (response.meta.last_page > 1) {
+        for (let page = 2; page <= response.meta.last_page; page++) {
+          const nextResponse = await getPublicCategories(page);
+          allCategories = [...allCategories, ...nextResponse.data];
+        }
+      }
+      setCategories(allCategories);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+    } finally {
+      setCategoriesLoading(false);
+    }
   };
 
-  const handleRemoveAddon = (index: number) => {
-    setAddons(addons.filter((_, i) => i !== index));
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImage(null);
+    setImagePreview(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setError(null);
+
+    if (!formData.name.trim()) {
+      setError("Service name is required");
+      return;
+    }
+
+    if (!formData.category_id) {
+      setError("Category is required");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await createService({
+        name: formData.name,
+        description: formData.description || undefined,
+        category_id: formData.category_id,
+        image: image || undefined,
+        status: formData.status,
+      });
       router.push("/vendor/services");
-    }, 1000);
+    } catch (err) {
+      if (err instanceof ApiException) {
+        setError(err.message || "Failed to create service");
+        if (err.errors) {
+          const errorMessages = Object.values(err.errors).flat().join(", ");
+          setError(errorMessages);
+        }
+      } else {
+        setError("Failed to create service");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -52,17 +121,26 @@ export default function AddServicePage() {
 
       <div className="bg-white border border-gray-200 rounded-lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
           {/* Basic Info */}
           <div>
             <h2 className="text-lg font-medium text-gray-900 mb-4">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Service Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Service Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., Plumbing Repair"
+                  placeholder="e.g., Plumbing Services"
+                  required
                   className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
                 />
               </div>
@@ -77,24 +155,29 @@ export default function AddServicePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Category <span className="text-red-500">*</span>
+                </label>
                 <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+                  value={formData.category_id}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                  required
+                  disabled={categoriesLoading}
+                  className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400 disabled:bg-gray-100"
                 >
-                  <option value="">Select category</option>
-                  <option value="repair">Repair</option>
-                  <option value="installation">Installation</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="inspection">Inspection</option>
+                  <option value="">{categoriesLoading ? "Loading categories..." : "Select category"}</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  value={formData.status ? "active" : "inactive"}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value === "active" })}
                   className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
                 >
                   <option value="active">Active</option>
@@ -104,107 +187,46 @@ export default function AddServicePage() {
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* Image */}
           <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Pricing & Duration</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Base Price ($)</label>
-                <input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+            <h2 className="text-lg font-medium text-gray-900 mb-4">Service Image</h2>
+            {imagePreview ? (
+              <div className="relative inline-block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-48 h-48 object-cover rounded-lg border border-gray-300"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Duration (minutes)</label>
-                <select
-                  value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                  className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
                 >
-                  <option value="30">30 minutes</option>
-                  <option value="45">45 minutes</option>
-                  <option value="60">1 hour</option>
-                  <option value="90">1.5 hours</option>
-                  <option value="120">2 hours</option>
-                  <option value="180">3 hours</option>
-                  <option value="240">4 hours</option>
-                </select>
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-            </div>
-          </div>
-
-          {/* Add-ons */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Add-ons</h2>
-              <button
-                type="button"
-                onClick={handleAddAddon}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add
-              </button>
-            </div>
-            {addons.length === 0 ? (
-              <p className="text-sm text-gray-500">No add-ons configured. Add optional extras customers can select.</p>
             ) : (
-              <div className="space-y-3">
-                {addons.map((addon, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <input
-                      type="text"
-                      value={addon.name}
-                      onChange={(e) => {
-                        const newAddons = [...addons];
-                        newAddons[index].name = e.target.value;
-                        setAddons(newAddons);
-                      }}
-                      placeholder="Add-on name"
-                      className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    />
-                    <input
-                      type="number"
-                      value={addon.price}
-                      onChange={(e) => {
-                        const newAddons = [...addons];
-                        newAddons[index].price = e.target.value;
-                        setAddons(newAddons);
-                      }}
-                      placeholder="Price"
-                      className="w-24 px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:border-gray-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAddon(index)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <label className="block">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
+                  <p className="text-xs text-gray-500">PNG, JPG, GIF, WEBP up to 2MB</p>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </label>
             )}
           </div>
 
-          {/* Images */}
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Images</h2>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-sm text-gray-600 mb-1">Drag and drop images, or click to browse</p>
-              <p className="text-xs text-gray-500">PNG, JPG up to 5MB each</p>
-              <button
-                type="button"
-                className="mt-3 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Select Images
-              </button>
-            </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> After creating the service, you can add sub-services with pricing and duration details.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -216,10 +238,17 @@ export default function AddServicePage() {
             </Link>
             <button
               type="submit"
-              disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+              disabled={isLoading || categoriesLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-2"
             >
-              {isLoading ? "Creating..." : "Create Service"}
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Service"
+              )}
             </button>
           </div>
         </form>

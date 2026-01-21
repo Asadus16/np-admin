@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Store,
-  Wrench,
   FolderOpen,
   DollarSign,
   TrendingUp,
@@ -13,6 +12,12 @@ import {
   CheckCircle,
   XCircle,
   Users,
+  ShoppingCart,
+  RotateCcw,
+  AlertTriangle,
+  Wallet,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -29,92 +34,17 @@ import {
   Pie,
   Cell,
 } from "recharts";
-
-// Mock data for stats
-const stats = [
-  {
-    name: "Total Vendors",
-    value: "156",
-    change: "+12%",
-    trend: "up",
-    icon: Store,
-    href: "/admin/vendors",
-  },
-  {
-    name: "Active Technicians",
-    value: "482",
-    change: "+8%",
-    trend: "up",
-    icon: Wrench,
-    href: "/admin/technicians",
-  },
-  {
-    name: "Categories",
-    value: "24",
-    change: "+2",
-    trend: "up",
-    icon: FolderOpen,
-    href: "/admin/categories",
-  },
-  {
-    name: "Monthly Revenue",
-    value: "$84,230",
-    change: "+18%",
-    trend: "up",
-    icon: DollarSign,
-    href: "/admin/transactions",
-  },
-];
-
-// Mock data for revenue chart (last 7 months)
-const revenueData = [
-  { month: "Jun", revenue: 45000 },
-  { month: "Jul", revenue: 52000 },
-  { month: "Aug", revenue: 48000 },
-  { month: "Sep", revenue: 61000 },
-  { month: "Oct", revenue: 55000 },
-  { month: "Nov", revenue: 72000 },
-  { month: "Dec", revenue: 84230 },
-];
-
-// Mock data for vendor applications
-const applicationData = [
-  { month: "Jun", approved: 12, pending: 5, rejected: 2 },
-  { month: "Jul", approved: 18, pending: 8, rejected: 3 },
-  { month: "Aug", approved: 15, pending: 6, rejected: 4 },
-  { month: "Sep", approved: 22, pending: 10, rejected: 2 },
-  { month: "Oct", approved: 19, pending: 7, rejected: 5 },
-  { month: "Nov", approved: 25, pending: 12, rejected: 3 },
-  { month: "Dec", approved: 28, pending: 15, rejected: 4 },
-];
-
-// Mock recent vendors
-const recentVendors = [
-  { id: 1, name: "ABC Plumbing", status: "pending", date: "Dec 28, 2024", category: "Plumbing" },
-  { id: 2, name: "Quick Fix HVAC", status: "approved", date: "Dec 27, 2024", category: "HVAC" },
-  { id: 3, name: "Elite Electrical", status: "approved", date: "Dec 26, 2024", category: "Electrical" },
-  { id: 4, name: "Pro Painters", status: "rejected", date: "Dec 25, 2024", category: "Painting" },
-  { id: 5, name: "Clean Masters", status: "pending", date: "Dec 24, 2024", category: "Cleaning" },
-];
-
-// Mock recent transactions
-const recentTransactions = [
-  { id: 1, vendor: "Mike's Plumbing", amount: "$1,250.00", type: "Payout", date: "Dec 28, 2024" },
-  { id: 2, vendor: "Quick Fix Services", amount: "$890.50", type: "Payout", date: "Dec 27, 2024" },
-  { id: 3, vendor: "Elite Electrical", amount: "$45.00", type: "Fee", date: "Dec 27, 2024" },
-  { id: 4, vendor: "Pro HVAC", amount: "$2,100.00", type: "Payout", date: "Dec 26, 2024" },
-  { id: 5, vendor: "Clean Masters", amount: "$32.50", type: "Fee", date: "Dec 26, 2024" },
-];
-
-// Mock category distribution
-const categoryDistribution = [
-  { name: "Plumbing", value: 42 },
-  { name: "Electrical", value: 35 },
-  { name: "HVAC", value: 28 },
-  { name: "Cleaning", value: 25 },
-  { name: "Painting", value: 15 },
-  { name: "Other", value: 11 },
-];
+import { useAuth } from "@/hooks/useAuth";
+import {
+  getDashboardData,
+  DashboardData,
+  RevenueChartData,
+  ApplicationsChartData,
+  CategoryDistributionData,
+  RecentVendor,
+  RecentTransaction,
+  PendingRefund,
+} from "@/lib/adminDashboard";
 
 // Professional gray color palette
 const GRAY_COLORS = ["#111827", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"];
@@ -137,7 +67,107 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function AdminDashboardPage() {
-  const [selectedPeriod, setSelectedPeriod] = useState("7d");
+  const { token } = useAuth();
+  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d'>('30d');
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!token) return;
+
+      setLoading(true);
+      try {
+        const response = await getDashboardData(selectedPeriod, token);
+        setDashboardData(response.data);
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [token, selectedPeriod]);
+
+  const handlePeriodChange = (period: '7d' | '30d' | '90d') => {
+    setSelectedPeriod(period);
+  };
+
+  // Format currency helper
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  // Format number with commas
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('en-US').format(value);
+  };
+
+  // Stats cards
+  const statsCards = dashboardData ? [
+    {
+      name: "Total Customers",
+      value: formatNumber(dashboardData.stats.total_customers),
+      change: dashboardData.stats.customer_change.value,
+      trend: dashboardData.stats.customer_change.trend,
+      icon: Users,
+      href: "/admin/customers",
+    },
+    {
+      name: "Total Vendors",
+      value: formatNumber(dashboardData.stats.total_vendors),
+      change: dashboardData.stats.vendor_change.value,
+      trend: dashboardData.stats.vendor_change.trend,
+      icon: Store,
+      href: "/admin/vendors",
+    },
+    {
+      name: "Total Orders",
+      value: formatNumber(dashboardData.stats.total_orders),
+      change: dashboardData.stats.order_change.value,
+      trend: dashboardData.stats.order_change.trend,
+      icon: ShoppingCart,
+      href: "/admin/orders",
+    },
+    {
+      name: "Total Revenue",
+      value: formatCurrency(dashboardData.stats.total_revenue),
+      change: dashboardData.stats.revenue_change.value,
+      trend: dashboardData.stats.revenue_change.trend,
+      icon: DollarSign,
+      href: "/admin/transactions",
+    },
+  ] : [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500">Failed to load dashboard data</p>
+      </div>
+    );
+  }
+
+  const revenueData: RevenueChartData[] = dashboardData.revenue_chart;
+  const applicationData: ApplicationsChartData[] = dashboardData.applications_chart;
+  const categoryDistribution: CategoryDistributionData[] = dashboardData.category_distribution;
+  const recentVendors: RecentVendor[] = dashboardData.recent_vendors;
+  const recentTransactions: RecentTransaction[] = dashboardData.recent_transactions;
+  const quickStats = dashboardData.quick_stats;
+  const pendingRefunds: PendingRefund[] = dashboardData.pending_refunds;
 
   return (
     <div className="space-y-6">
@@ -148,10 +178,10 @@ export default function AdminDashboardPage() {
           <p className="text-sm text-gray-500 mt-1">Overview of your platform performance</p>
         </div>
         <div className="flex items-center gap-2">
-          {["7d", "30d", "90d"].map((period) => (
+          {(["7d", "30d", "90d"] as const).map((period) => (
             <button
               key={period}
-              onClick={() => setSelectedPeriod(period)}
+              onClick={() => handlePeriodChange(period)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 selectedPeriod === period
                   ? "bg-gray-900 text-white"
@@ -166,7 +196,7 @@ export default function AdminDashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Link
             key={stat.name}
             href={stat.href}
@@ -178,14 +208,14 @@ export default function AdminDashboardPage() {
               </div>
               <div
                 className={`flex items-center text-sm font-medium ${
-                  stat.trend === "up" ? "text-gray-900" : "text-gray-500"
+                  stat.trend === "up" ? "text-gray-900" : stat.trend === "down" ? "text-red-600" : "text-gray-500"
                 }`}
               >
                 {stat.trend === "up" ? (
                   <TrendingUp className="h-4 w-4 mr-1" />
-                ) : (
+                ) : stat.trend === "down" ? (
                   <TrendingDown className="h-4 w-4 mr-1" />
-                )}
+                ) : null}
                 {stat.change}
               </div>
             </div>
@@ -214,37 +244,43 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#374151" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#374151" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                  tickFormatter={(value) => `$${value / 1000}k`}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#111827"
-                  strokeWidth={2}
-                  fill="url(#revenueGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {revenueData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#374151" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#374151" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                    tickFormatter={(value) => `$${value / 1000}k`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#111827"
+                    strokeWidth={2}
+                    fill="url(#revenueGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No revenue data available
+              </div>
+            )}
           </div>
         </div>
 
@@ -263,26 +299,32 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={applicationData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="approved" stackId="a" fill="#111827" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="pending" stackId="a" fill="#6b7280" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="rejected" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {applicationData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={applicationData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="approved" stackId="a" fill="#111827" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="pending" stackId="a" fill="#6b7280" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="rejected" stackId="a" fill="#d1d5db" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No application data available
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center gap-2">
@@ -318,49 +360,57 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={70}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={GRAY_COLORS[index % GRAY_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
-                          <p className="font-medium">{payload[0].name}</p>
-                          <p className="text-gray-300">{payload[0].value} vendors</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {categoryDistribution.map((category, index) => (
-              <div key={category.name} className="flex items-center gap-2">
-                <div
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ backgroundColor: GRAY_COLORS[index % GRAY_COLORS.length] }}
-                />
-                <span className="text-xs text-gray-600 truncate">{category.name}</span>
-                <span className="text-xs text-gray-400 ml-auto">{category.value}</span>
+            {categoryDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryDistribution as { name: string; value: number }[]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={70}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {categoryDistribution.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={GRAY_COLORS[index % GRAY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-gray-900 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+                            <p className="font-medium">{payload[0].name}</p>
+                            <p className="text-gray-300">{payload[0].value} vendors</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+                No category data available
               </div>
-            ))}
+            )}
           </div>
+          {categoryDistribution.length > 0 && (
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              {categoryDistribution.map((category, index) => (
+                <div key={category.name} className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-sm"
+                    style={{ backgroundColor: GRAY_COLORS[index % GRAY_COLORS.length] }}
+                  />
+                  <span className="text-xs text-gray-600 truncate">{category.name}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{category.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Recent Vendors */}
@@ -378,33 +428,39 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentVendors.slice(0, 4).map((vendor) => (
-              <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <Store className="h-4 w-4 text-gray-500" />
+            {recentVendors.length > 0 ? (
+              recentVendors.slice(0, 4).map((vendor) => (
+                <div key={vendor.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <Store className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
+                      <p className="text-xs text-gray-500">{vendor.category}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{vendor.name}</p>
-                    <p className="text-xs text-gray-500">{vendor.category}</p>
-                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      vendor.status === "approved"
+                        ? "bg-gray-900 text-white"
+                        : vendor.status === "pending"
+                        ? "bg-gray-200 text-gray-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {vendor.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
+                    {vendor.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
+                    {vendor.status === "rejected" && <XCircle className="h-3 w-3 mr-1" />}
+                    {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
+                  </span>
                 </div>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    vendor.status === "approved"
-                      ? "bg-gray-900 text-white"
-                      : vendor.status === "pending"
-                      ? "bg-gray-200 text-gray-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {vendor.status === "approved" && <CheckCircle className="h-3 w-3 mr-1" />}
-                  {vendor.status === "pending" && <Clock className="h-3 w-3 mr-1" />}
-                  {vendor.status === "rejected" && <XCircle className="h-3 w-3 mr-1" />}
-                  {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
-                </span>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400 text-sm">
+                No recent applications
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -412,40 +468,157 @@ export default function AdminDashboardPage() {
         <div className="bg-white border border-gray-200 rounded-lg">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">Recent Transactions</h3>
-              <p className="text-sm text-gray-500">Latest payouts and fees</p>
+              <h3 className="font-semibold text-gray-900">Recent Orders</h3>
+              <p className="text-sm text-gray-500">Latest completed orders</p>
             </div>
             <Link
-              href="/admin/transactions"
+              href="/admin/orders"
               className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
             >
               View all <ArrowRight className="h-4 w-4 ml-1" />
             </Link>
           </div>
           <div className="divide-y divide-gray-100">
-            {recentTransactions.slice(0, 4).map((transaction) => (
-              <div key={transaction.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    transaction.type === "Payout" ? "bg-gray-900" : "bg-gray-100"
-                  }`}>
-                    <DollarSign className={`h-4 w-4 ${
-                      transaction.type === "Payout" ? "text-white" : "text-gray-500"
-                    }`} />
+            {recentTransactions.length > 0 ? (
+              recentTransactions.slice(0, 4).map((transaction) => (
+                <div key={transaction.id} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+                      <DollarSign className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{transaction.vendor}</p>
+                      <p className="text-xs text-gray-500">{transaction.type}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{transaction.vendor}</p>
-                    <p className="text-xs text-gray-500">{transaction.type}</p>
-                  </div>
+                  <span className="text-sm font-medium text-gray-900">
+                    {formatCurrency(transaction.amount)}
+                  </span>
                 </div>
-                <span className={`text-sm font-medium ${
-                  transaction.type === "Payout" ? "text-gray-900" : "text-gray-500"
-                }`}>
-                  {transaction.type === "Payout" ? "-" : "+"}{transaction.amount}
-                </span>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-400 text-sm">
+                No recent orders
               </div>
-            ))}
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Quick Links */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Link
+          href="/admin/vendors/applications"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <FileText className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pending_approvals}</p>
+              <p className="text-xs text-gray-500">Pending Approvals</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/refunds"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <RotateCcw className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.pending_refunds}</p>
+              <p className="text-xs text-gray-500">Pending Refunds</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/payouts"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <Wallet className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.payouts_due}</p>
+              <p className="text-xs text-gray-500">Payouts Due</p>
+            </div>
+          </div>
+        </Link>
+        <Link
+          href="/admin/refunds?status=pending"
+          className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-gray-900">{quickStats.open_disputes}</p>
+              <p className="text-xs text-gray-500">Open Disputes</p>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      {/* Refund Requests Widget */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Pending Refund Requests</h3>
+            <p className="text-sm text-gray-500">Requests awaiting approval</p>
+          </div>
+          <Link
+            href="/admin/refunds"
+            className="text-sm text-gray-600 hover:text-gray-900 flex items-center"
+          >
+            View all <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          {pendingRefunds.length > 0 ? (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Order</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Customer</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Vendor</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Amount</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Reason</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Date</th>
+                  <th className="text-left text-xs font-medium text-gray-500 uppercase px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pendingRefunds.map((refund) => (
+                  <tr key={refund.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{refund.order_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.customer}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.vendor}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(refund.amount)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{refund.reason}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{refund.date}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/refunds/${refund.id}`}
+                        className="px-2 py-1 text-xs font-medium text-white bg-gray-900 rounded hover:bg-gray-800"
+                      >
+                        Review
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              No pending refund requests
+            </div>
+          )}
         </div>
       </div>
 
@@ -468,14 +641,14 @@ export default function AdminDashboardPage() {
             Add Category
           </Link>
           <Link
-            href="/admin/vendors/applications"
+            href="/admin/coupons/add"
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
-            <Users className="h-4 w-4 mr-2" />
-            Review Applications
+            <FileText className="h-4 w-4 mr-2" />
+            Create Coupon
           </Link>
           <Link
-            href="/admin/transactions"
+            href="/admin/payouts"
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             <DollarSign className="h-4 w-4 mr-2" />

@@ -15,7 +15,21 @@ import {
   Shield,
   Store,
   Wrench,
+  MapPin,
+  Users,
+  ShoppingCart,
+  RotateCcw,
+  Tag,
+  Wallet,
+  BarChart3,
+  Settings,
+  Coins,
+  Star,
 } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchUnreadCount } from "@/store/slices/chatSlice";
+import { fetchPendingRefundCount, incrementPendingCount, decrementPendingCount } from "@/store/slices/refundSlice";
+import { joinAdminDisputesRoom, leaveAdminDisputesRoom, onDispute, offDispute, SocketDisputeEvent } from "@/lib/socket";
 
 interface AdminSidebarProps {
   isCollapsed: boolean;
@@ -37,12 +51,9 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
-    name: "Categories",
-    icon: <FolderOpen className="h-4 w-4" />,
-    children: [
-      { name: "All Categories", href: "/admin/categories" },
-      { name: "Add Category", href: "/admin/categories/add" },
-    ],
+    name: "Customers",
+    href: "/admin/customers",
+    icon: <Users className="h-4 w-4" />,
   },
   {
     name: "Vendors",
@@ -51,6 +62,47 @@ const navigation: NavItem[] = [
       { name: "Applications", href: "/admin/vendors/applications" },
       { name: "All Vendors", href: "/admin/vendors" },
       { name: "Add Vendor", href: "/admin/vendors/add" },
+    ],
+  },
+  {
+    name: "Orders",
+    href: "/admin/orders",
+    icon: <ShoppingCart className="h-4 w-4" />,
+  },
+  {
+    name: "Refunds",
+    href: "/admin/refunds",
+    icon: <RotateCcw className="h-4 w-4" />,
+  },
+  {
+    name: "Coupons",
+    href: "/admin/coupons",
+    icon: <Tag className="h-4 w-4" />,
+  },
+  {
+    name: "Points",
+    href: "/admin/points",
+    icon: <Coins className="h-4 w-4" />,
+  },
+  {
+    name: "Payouts",
+    href: "/admin/payouts",
+    icon: <Wallet className="h-4 w-4" />,
+  },
+  {
+    name: "Categories",
+    icon: <FolderOpen className="h-4 w-4" />,
+    children: [
+      { name: "All Categories", href: "/admin/categories" },
+      { name: "Add Category", href: "/admin/categories/add" },
+    ],
+  },
+  {
+    name: "Service Areas",
+    icon: <MapPin className="h-4 w-4" />,
+    children: [
+      { name: "All Service Areas", href: "/admin/service-areas" },
+      { name: "Add Service Area", href: "/admin/service-areas/add" },
     ],
   },
   {
@@ -64,6 +116,7 @@ const navigation: NavItem[] = [
     name: "Billing & Plans",
     icon: <CreditCard className="h-4 w-4" />,
     children: [
+      { name: "Plans", href: "/admin/billing/plans" },
       { name: "Usage & Limits", href: "/admin/billing" },
       { name: "Feature Flags", href: "/admin/billing/feature-flags" },
     ],
@@ -78,24 +131,42 @@ const navigation: NavItem[] = [
     ],
   },
   {
+    name: "Reports",
+    href: "/admin/reports",
+    icon: <BarChart3 className="h-4 w-4" />,
+  },
+  {
+    name: "Reviews",
+    href: "/admin/reviews",
+    icon: <Star className="h-4 w-4" />,
+  },
+  {
     name: "Messages",
     href: "/admin/messages",
     icon: <MessageSquare className="h-4 w-4" />,
   },
   {
-    name: "Audit & Settings",
+    name: "Settings",
+    href: "/admin/settings",
+    icon: <Settings className="h-4 w-4" />,
+  },
+  {
+    name: "Audit & Security",
     icon: <Shield className="h-4 w-4" />,
     children: [
       { name: "Audit Logs", href: "/admin/audit-logs" },
       { name: "Roles & Permissions", href: "/admin/roles" },
       { name: "Organization", href: "/admin/organization" },
-      { name: "Security", href: "/admin/security" },
     ],
   },
 ];
 
 export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { token } = useAppSelector((state) => state.auth);
+  const { unreadCount } = useAppSelector((state) => state.chat);
+  const { pendingCount: pendingRefundCount } = useAppSelector((state) => state.refund);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -110,6 +181,41 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
       }
     });
   }, [pathname]);
+
+  // Fetch unread count on mount only
+  useEffect(() => {
+    dispatch(fetchUnreadCount());
+  }, [dispatch]);
+
+  // Fetch pending refund count on mount
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchPendingRefundCount(token));
+    }
+  }, [dispatch, token]);
+
+  // Join admin disputes room and listen for dispute events via socket
+  useEffect(() => {
+    // Join the admin disputes room for real-time updates
+    joinAdminDisputesRoom();
+
+    const handleDispute = (event: SocketDisputeEvent) => {
+      if (event.event_type === 'created') {
+        // New refund request - increment pending count
+        dispatch(incrementPendingCount());
+      } else if (event.event_type === 'approved' || event.event_type === 'rejected' || event.event_type === 'completed') {
+        // Refund processed - decrement pending count
+        dispatch(decrementPendingCount());
+      }
+    };
+
+    onDispute(handleDispute);
+
+    return () => {
+      offDispute(handleDispute);
+      leaveAdminDisputesRoom();
+    };
+  }, [dispatch]);
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>
@@ -181,7 +287,7 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
         </div>
 
         {/* Navigation */}
-        <nav className="px-2" style={{ padding: "10px" }}>
+        <nav className="px-2 overflow-y-auto h-[calc(100vh-80px)]" style={{ padding: "10px" }}>
           <div className="space-y-1">
             {navigation.map((item) => (
               <div key={item.name}>
@@ -199,6 +305,16 @@ export function AdminSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Admin
                   >
                     <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
                     {!isCollapsed && <span className="truncate">{item.name}</span>}
+                    {item.name === "Messages" && unreadCount > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                    {item.name === "Refunds" && pendingRefundCount > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-amber-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {pendingRefundCount > 99 ? "99+" : pendingRefundCount}
+                      </span>
+                    )}
                   </Link>
                 ) : (
                   <>

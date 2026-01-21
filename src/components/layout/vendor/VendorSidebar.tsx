@@ -18,8 +18,9 @@ import {
   Bell,
   BarChart3,
   Settings,
-  Building2,
 } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import { fetchUnreadCount } from "@/store/slices/chatSlice";
 
 interface VendorSidebarProps {
   isCollapsed: boolean;
@@ -41,16 +42,6 @@ const navigation: NavItem[] = [
     icon: <LayoutDashboard className="h-4 w-4" />,
   },
   {
-    name: "Onboarding",
-    icon: <Building2 className="h-4 w-4" />,
-    children: [
-      { name: "Company Profile", href: "/vendor/onboarding" },
-      { name: "KYC Verification", href: "/vendor/onboarding/kyc" },
-      { name: "Service Areas", href: "/vendor/onboarding/service-areas" },
-      { name: "Teams", href: "/vendor/onboarding/teams" },
-    ],
-  },
-  {
     name: "Service Catalog",
     icon: <Package className="h-4 w-4" />,
     children: [
@@ -60,10 +51,8 @@ const navigation: NavItem[] = [
   },
   {
     name: "Orders",
+    href: "/vendor/orders",
     icon: <ClipboardList className="h-4 w-4" />,
-    children: [
-      { name: "Inbox", href: "/vendor/orders" },
-    ],
   },
   {
     name: "Scheduling",
@@ -79,7 +68,6 @@ const navigation: NavItem[] = [
     children: [
       { name: "Team", href: "/vendor/technicians" },
       { name: "Invite", href: "/vendor/technicians/invite" },
-      { name: "Roles", href: "/vendor/technicians/roles" },
       { name: "Assignments", href: "/vendor/technicians/assignments" },
     ],
   },
@@ -88,6 +76,7 @@ const navigation: NavItem[] = [
     icon: <Wallet className="h-4 w-4" />,
     children: [
       { name: "Balance", href: "/vendor/wallet" },
+      { name: "Payouts", href: "/vendor/payouts" },
       { name: "Payout Methods", href: "/vendor/wallet/payout-methods" },
       { name: "History", href: "/vendor/wallet/history" },
     ],
@@ -123,6 +112,7 @@ const navigation: NavItem[] = [
       { name: "Company", href: "/vendor/settings" },
       { name: "Service Areas", href: "/vendor/settings/service-areas" },
       { name: "Taxes & Fees", href: "/vendor/settings/taxes" },
+      { name: "Subscription & Billing", href: "/vendor/settings/subscription" },
       { name: "Preferences", href: "/vendor/settings/preferences" },
     ],
   },
@@ -130,6 +120,8 @@ const navigation: NavItem[] = [
 
 export function VendorSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: VendorSidebarProps) {
   const pathname = usePathname();
+  const dispatch = useAppDispatch();
+  const { unreadCount } = useAppSelector((state) => state.chat);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -144,6 +136,11 @@ export function VendorSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Vend
       }
     });
   }, [pathname]);
+
+  // Fetch unread count on mount (WebSocket handles real-time updates)
+  useEffect(() => {
+    dispatch(fetchUnreadCount());
+  }, [dispatch]);
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>
@@ -233,6 +230,11 @@ export function VendorSidebar({ isCollapsed, isMobileOpen, onCloseMobile }: Vend
                   >
                     <span className={isCollapsed ? "" : "mr-3"}>{item.icon}</span>
                     {!isCollapsed && <span className="truncate">{item.name}</span>}
+                    {item.name === "Messages" && unreadCount > 0 && (
+                      <span className="ml-auto min-w-5 h-5 px-1.5 bg-blue-600 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 ) : (
                   <>

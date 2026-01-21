@@ -1,0 +1,275 @@
+// Customer-facing order types
+
+export interface OrderItem {
+  id: string;
+  sub_service_id: string;
+  service_name: string;
+  sub_service_name: string;
+  unit_price: number;
+  quantity: number;
+  duration_minutes: number;
+  total_price: number;
+}
+
+export interface OrderVendor {
+  id: string;
+  name: string;
+  logo: string;
+  user_id?: number; // Raw user ID for chat (primary vendor)
+}
+
+export interface OrderTechnician {
+  id: number; // Raw ID for chat
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface OrderAddress {
+  id: string;
+  label: string;
+  street_address: string;
+  building: string | null;
+  apartment: string | null;
+  city: string;
+  emirate: string;
+}
+
+export interface OrderPaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+}
+
+export interface OrderCoupon {
+  id: string;
+  code: string;
+  discount: number;
+}
+
+export interface OrderRefundRequest {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  reason: string;
+  reason_label: string;
+  reason_details: string | null;
+  order_total: number;
+  approved_amount: number | null;
+  refund_percentage: number | null;
+  vendor_response: string | null;
+  transfer_reference: string | null;
+  reviewed_at: string | null;
+  transfer_completed_at: string | null;
+  created_at: string;
+}
+
+export type TechnicianStatus =
+  | 'assigned'
+  | 'acknowledged'
+  | 'on_the_way'
+  | 'arrived'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'pending';
+
+export interface OrderRecurringInfo {
+  id: string;
+  frequency_type: FrequencyType;
+  frequency_label: string;
+}
+
+export interface Order {
+  id: string;
+  order_number: string;
+  recurring_order_id?: string | null;
+  recurring_order?: OrderRecurringInfo | null;
+  vendor: OrderVendor;
+  technician: OrderTechnician | null;
+  address: OrderAddress;
+  payment_method: OrderPaymentMethod | null;
+  coupon: OrderCoupon | null;
+  items: OrderItem[];
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'recurring';
+  payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
+  payment_type: 'card' | 'cash' | 'wallet';
+  subtotal: number;
+  discount_amount: number;
+  points_discount: number;
+  points_redeemed: number;
+  points_earned: number;
+  tax: number;
+  total: number;
+  scheduled_date: string;
+  scheduled_time: string;
+  notes: string | null;
+  cancellation_reason: string | null;
+  // Technician tracking
+  technician_status: TechnicianStatus | null;
+  assigned_at: string | null;
+  acknowledged_at: string | null;
+  on_the_way_at: string | null;
+  arrived_at: string | null;
+  // Order timestamps
+  confirmed_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Refund request (if any)
+  refund_request: OrderRefundRequest | null;
+}
+
+// Vendor for customer listing
+export interface CustomerVendor {
+  id: string;
+  name: string;
+  description: string | null;
+  logo: string;
+  category: {
+    id: string;
+    name: string;
+    commission_rate?: string;
+  } | null;
+  service_areas: Array<{
+    id: string;
+    name: string;
+  }>;
+  services: CustomerVendorService[] | null;
+  landline: string | null;
+  website: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  distance_km: number | null;
+  is_favorite: boolean;
+  rating: number;
+  reviews_count: number;
+  starting_price: number | null;
+  response_time: string;
+  available: boolean;
+  vat?: {
+    enabled: boolean;
+    rate: number;
+    tax_registration_number: string | null;
+  };
+}
+
+export interface CustomerVendorService {
+  id: string;
+  name: string;
+  description: string | null;
+  image: string | null;
+  sub_services: CustomerVendorSubService[];
+}
+
+export interface CustomerVendorSubService {
+  id: string;
+  name: string;
+  price: number | string; // API returns as string, but we'll convert to number for calculations
+  duration: number;
+  images: string[];
+}
+
+// Recurring order frequency type
+export type FrequencyType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
+
+// Form data for creating an order
+export interface CreateOrderData {
+  vendor_id: string;
+  address_id: string;
+  payment_method_id?: string;
+  payment_type: 'card' | 'cash' | 'wallet';
+  coupon_code?: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  notes?: string;
+  items: Array<{
+    sub_service_id: string;
+    quantity: number;
+  }>;
+  // Recurring order fields
+  is_recurring?: boolean;
+  frequency_type?: FrequencyType;
+  frequency_interval?: number;
+  end_date?: string;
+  // Points redemption
+  points_to_redeem?: number;
+  vat?: {
+    enabled: boolean;
+    rate: number;
+    tax_registration_number?: string | null;
+    amount?: number; // Calculated VAT amount
+  };
+}
+
+// API Responses
+export interface OrderListResponse {
+  status: string;
+  data: Order[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface OrderResponse {
+  status: string;
+  data: Order;
+}
+
+export interface OrderCreateResponse {
+  status: string;
+  message: string;
+  data: Order;
+}
+
+export interface OrderCancelResponse {
+  status: string;
+  message: string;
+  data: Order;
+}
+
+export interface CouponValidateResponse {
+  status: string;
+  data: {
+    code: string;
+    discount: number;
+    min_order: number;
+  };
+}
+
+export interface CustomerVendorListResponse {
+  data: CustomerVendor[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
+export interface CustomerVendorResponse {
+  data: CustomerVendor;
+}
+
+// Category for customer
+export interface CustomerCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image: string | null;
+}
+
+export interface CustomerCategoryListResponse {
+  data: CustomerCategory[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
