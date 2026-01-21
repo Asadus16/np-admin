@@ -12,16 +12,30 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-let app: FirebaseApp;
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApps()[0];
+// Initialize Firebase lazily (client-side only)
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+
+function getFirebaseApp(): FirebaseApp {
+  if (typeof window === 'undefined') {
+    throw new Error('Firebase can only be initialized in the browser');
+  }
+  if (!app) {
+    if (getApps().length === 0) {
+      app = initializeApp(firebaseConfig);
+    } else {
+      app = getApps()[0];
+    }
+  }
+  return app;
 }
 
-// Initialize Auth
-export const auth: Auth = getAuth(app);
+export function getFirebaseAuth(): Auth {
+  if (!auth) {
+    auth = getAuth(getFirebaseApp());
+  }
+  return auth;
+}
 
 // Recaptcha verifier instance
 let recaptchaVerifier: RecaptchaVerifier | null = null;
@@ -54,7 +68,7 @@ export function getRecaptchaVerifier(): RecaptchaVerifier {
   }
 
   // Create new verifier
-  recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+  recaptchaVerifier = new RecaptchaVerifier(getFirebaseAuth(), 'recaptcha-container', {
     size: 'invisible',
     callback: () => {
       // reCAPTCHA solved, allow sendSMS.
@@ -94,12 +108,12 @@ export function clearRecaptchaVerifier(): void {
 export async function sendOTP(phoneNumber: string): Promise<ConfirmationResult> {
   const verifier = getRecaptchaVerifier();
   const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
-  return signInWithPhoneNumber(auth, formattedPhone, verifier);
+  return signInWithPhoneNumber(getFirebaseAuth(), formattedPhone, verifier);
 }
 
 export async function verifyOTP(confirmationResult: ConfirmationResult, code: string) {
   return confirmationResult.confirm(code);
 }
 
-export { app };
+export { getFirebaseApp as app };
 
