@@ -29,6 +29,7 @@ import {
   canCancelAndRefund as checkCanCancelAndRefund,
   canRequestRefundOnly as checkCanRequestRefundOnly,
 } from "@/components/order/details";
+import { formatCurrency, formatDate } from "@/components/order/details/helpers/orderFormatters";
 
 export default function OrderDetailsPage() {
   const params = useParams();
