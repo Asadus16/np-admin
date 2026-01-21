@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+// Use relative URL to leverage Next.js rewrites (configured in next.config.ts)
+// This allows HTTPS frontend to proxy requests to HTTP backend without mixed content issues
+const API_URL = '/api';
 
 interface ApiOptions extends RequestInit {
   token?: string;
