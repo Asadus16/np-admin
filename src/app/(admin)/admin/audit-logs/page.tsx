@@ -230,7 +230,7 @@ export default function AuditLogsPage() {
       if (filters.date_filter) params.append("date_filter", filters.date_filter);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/admin/audit-logs/export?${params.toString()}`,
+        `/api/admin/audit-logs/export?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

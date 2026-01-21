@@ -7,7 +7,7 @@ import {
   RecurringOrderActionResponse,
 } from '@/types/recurringOrder';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_URL = '/api';
 
 async function getAuthToken(): Promise<string> {
   const auth = getAuthFromStorage();
