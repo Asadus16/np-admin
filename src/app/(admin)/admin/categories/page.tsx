@@ -89,8 +89,9 @@ export default function CategoriesPage() {
   const getImageUrl = (imagePath: string | null) => {
     if (!imagePath) return null;
     if (imagePath.startsWith("http")) return imagePath;
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    return `${apiUrl.replace("/api", "")}/storage/${imagePath}`;
+    // Use NEXT_PUBLIC_STORAGE_URL for direct image access (not through API proxy)
+    const storageUrl = process.env.NEXT_PUBLIC_STORAGE_URL || "";
+    return `${storageUrl}/storage/${imagePath}`;
   };
 
   return (

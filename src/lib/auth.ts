@@ -3,7 +3,7 @@ import { api, ApiException } from './api';
 
 const AUTH_STORAGE_KEY = 'np_admin_auth';
 const TOKEN_STORAGE_KEY = 'np_admin_token';
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = '/api';
 
 // API Auth Functions
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {
