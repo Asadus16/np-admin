@@ -465,6 +465,8 @@ export default function NewOrderPage() {
             onTimeChange={setSelectedTime}
             recurringFrequency={recurringFrequency}
             onFrequencyChange={setRecurringFrequency}
+            vendorId={selectedVendor}
+            totalDuration={totalDuration}
           />
         );
       case 2:

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, Clock } from "lucide-react";
+import { MapPin, Calendar, Clock, Loader2, AlertCircle } from "lucide-react";
 import { AddressScheduleStepProps, TIME_SLOTS } from "../../types";
+import { getAvailableTimeSlots, AvailableTimeSlot } from "@/lib/customerVendor";
 
 export function AddressScheduleStep({
   addresses,
@@ -16,7 +18,53 @@ export function AddressScheduleStep({
   onTimeChange,
   recurringFrequency,
   onFrequencyChange,
+  vendorId,
+  totalDuration = 0,
 }: AddressScheduleStepProps) {
+  const [availableSlots, setAvailableSlots] = useState<AvailableTimeSlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
+
+  // Fetch available time slots when date or vendor changes
+  useEffect(() => {
+    if (orderType !== "now" && selectedDate && vendorId && totalDuration > 0) {
+      fetchAvailableSlots();
+    } else {
+      setAvailableSlots([]);
+    }
+  }, [selectedDate, vendorId, totalDuration, orderType]);
+
+  const fetchAvailableSlots = async () => {
+    if (!selectedDate || !vendorId || totalDuration <= 0) return;
+
+    setLoadingSlots(true);
+    setSlotsError(null);
+    try {
+      const response = await getAvailableTimeSlots(vendorId, selectedDate, totalDuration);
+      setAvailableSlots(response.data);
+    } catch (err) {
+      console.error("Failed to fetch available time slots:", err);
+      setSlotsError("Failed to load available time slots");
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  // Get available time slots or fallback to all slots
+  const getTimeSlots = () => {
+    if (availableSlots.length > 0) {
+      return availableSlots;
+    }
+    // Fallback to all time slots if no data available
+    return TIME_SLOTS.map((time) => ({
+      time,
+      available_technicians: [],
+      available_count: 0,
+    }));
+  };
+
+  const timeSlots = getTimeSlots();
   return (
     <div className="space-y-6">
       <div>
@@ -109,19 +157,47 @@ export function AddressScheduleStep({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Clock className="h-4 w-4 inline mr-1" />
                 Select Time
+                {loadingSlots && (
+                  <Loader2 className="h-3 w-3 inline ml-2 animate-spin text-gray-400" />
+                )}
               </label>
+              {slotsError && (
+                <div className="mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {slotsError}
+                </div>
+              )}
               <select
                 value={selectedTime}
                 onChange={(e) => onTimeChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                disabled={loadingSlots}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
-                <option value="">Choose a time</option>
-                {TIME_SLOTS.map((slot) => (
-                  <option key={slot} value={slot}>
-                    {slot}
-                  </option>
-                ))}
+                <option value="">
+                  {loadingSlots ? "Loading available times..." : "Choose a time"}
+                </option>
+                {timeSlots.map((slot) => {
+                  const isAvailable = slot.available_count > 0;
+                  return (
+                    <option
+                      key={slot.time}
+                      value={slot.time}
+                      disabled={!isAvailable}
+                      className={!isAvailable ? "text-gray-400" : ""}
+                    >
+                      {slot.time}
+                      {isAvailable && slot.available_count > 0
+                        ? ` (${slot.available_count} technician${slot.available_count > 1 ? "s" : ""} available)`
+                        : " (Unavailable)"}
+                    </option>
+                  );
+                })}
               </select>
+              {selectedDate && vendorId && totalDuration > 0 && availableSlots.length === 0 && !loadingSlots && (
+                <p className="mt-1 text-xs text-gray-500">
+                  No available time slots for this date. Please select another date.
+                </p>
+              )}
             </div>
           </div>
         </div>
