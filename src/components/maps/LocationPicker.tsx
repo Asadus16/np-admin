@@ -10,6 +10,7 @@ interface LocationPickerProps {
   onLocationChange: (lat: number, lng: number) => void;
   height?: string;
   autoFetch?: boolean;
+  restrictToUAE?: boolean; // Restrict location selection to UAE only
 }
 
 interface SearchResult {
@@ -37,12 +38,31 @@ const MapComponent = dynamic(
   }
 );
 
+// UAE boundaries for validation
+const UAE_BOUNDS = {
+  minLat: 22.5,
+  maxLat: 26.0,
+  minLng: 51.0,
+  maxLng: 56.4,
+};
+
+// Check if coordinates are within UAE
+const isWithinUAE = (lat: number, lng: number): boolean => {
+  return (
+    lat >= UAE_BOUNDS.minLat &&
+    lat <= UAE_BOUNDS.maxLat &&
+    lng >= UAE_BOUNDS.minLng &&
+    lng <= UAE_BOUNDS.maxLng
+  );
+};
+
 export default function LocationPicker({
   latitude,
   longitude,
   onLocationChange,
   height = "200px",
   autoFetch = false,
+  restrictToUAE = false,
 }: LocationPickerProps) {
   const [markerPosition, setMarkerPosition] = useState<[number, number] | null>(
     latitude && longitude ? [latitude, longitude] : null
@@ -105,10 +125,15 @@ export default function LocationPicker({
 
   const handleLocationChange = useCallback(
     (lat: number, lng: number) => {
+      // Validate UAE bounds if restriction is enabled
+      if (restrictToUAE && !isWithinUAE(lat, lng)) {
+        alert("Please select a location within the United Arab Emirates (UAE)");
+        return;
+      }
       setMarkerPosition([lat, lng]);
       onLocationChange(lat, lng);
     },
-    [onLocationChange]
+    [onLocationChange, restrictToUAE]
   );
 
   const handleGetCurrentLocation = useCallback(() => {
@@ -121,6 +146,12 @@ export default function LocationPicker({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude: lat, longitude: lng } = position.coords;
+        // Validate UAE bounds if restriction is enabled
+        if (restrictToUAE && !isWithinUAE(lat, lng)) {
+          alert("Your current location is outside the United Arab Emirates (UAE). Please select a location within UAE manually.");
+          setIsLocating(false);
+          return;
+        }
         setMarkerPosition([lat, lng]);
         onLocationChange(lat, lng);
         setTriggerPan((prev) => prev + 1);
@@ -137,7 +168,7 @@ export default function LocationPicker({
         maximumAge: 0,
       }
     );
-  }, [onLocationChange]);
+  }, [onLocationChange, restrictToUAE]);
 
   // Search for locations using Nominatim
   const searchLocation = useCallback(async (query: string) => {
@@ -148,8 +179,10 @@ export default function LocationPicker({
 
     setIsSearching(true);
     try {
+      // Add UAE country code restriction if enabled
+      const countryCode = restrictToUAE ? "&countrycodes=ae" : "";
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}${countryCode}&limit=5&addressdetails=1`,
         {
           headers: {
             "Accept-Language": "en",
@@ -157,7 +190,15 @@ export default function LocationPicker({
         }
       );
       const data = await response.json();
-      setSearchResults(data);
+      // Filter results to UAE only if restriction is enabled
+      const filteredData = restrictToUAE
+        ? data.filter((result: SearchResult) => {
+            const lat = parseFloat(result.lat);
+            const lng = parseFloat(result.lon);
+            return isWithinUAE(lat, lng);
+          })
+        : data;
+      setSearchResults(filteredData);
       setShowResults(true);
     } catch (error) {
       console.error("Search error:", error);
@@ -165,7 +206,7 @@ export default function LocationPicker({
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [restrictToUAE]);
 
   // Debounced search
   const handleSearchChange = (value: string) => {
@@ -188,6 +229,11 @@ export default function LocationPicker({
   const handleSelectResult = (result: SearchResult) => {
     const lat = parseFloat(result.lat);
     const lng = parseFloat(result.lon);
+    // Validate UAE bounds if restriction is enabled
+    if (restrictToUAE && !isWithinUAE(lat, lng)) {
+      alert("Please select a location within the United Arab Emirates (UAE)");
+      return;
+    }
     setMarkerPosition([lat, lng]);
     onLocationChange(lat, lng);
     setTriggerPan((prev) => prev + 1);
@@ -205,7 +251,7 @@ export default function LocationPicker({
   return (
     <div className="space-y-2">
       {/* Search Bar */}
-      <div ref={searchContainerRef} className="relative z-1000">
+      <div ref={searchContainerRef} className="relative z-[9999]">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -232,7 +278,7 @@ export default function LocationPicker({
 
         {/* Search Results Dropdown */}
         {showResults && searchResults.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
             {searchResults.map((result) => (
               <button
                 key={result.place_id}
@@ -254,6 +300,7 @@ export default function LocationPicker({
           markerPosition={markerPosition}
           onLocationChange={handleLocationChange}
           triggerPan={triggerPan}
+          restrictToUAE={restrictToUAE}
         />
       </div>
 
@@ -281,7 +328,9 @@ export default function LocationPicker({
       </div>
 
       <p className="text-xs text-gray-500 text-center">
-        Search for an address, click on the map, or drag the marker
+        {restrictToUAE 
+          ? "Search for an address in UAE, click on the map, or drag the marker (UAE only)"
+          : "Search for an address, click on the map, or drag the marker"}
       </p>
     </div>
   );

@@ -186,3 +186,45 @@ export function formatPrice(price: number | null): string {
     maximumFractionDigits: 0,
   }).format(price);
 }
+
+/**
+ * Get available time slots for a vendor on a specific date
+ */
+export interface AvailableTimeSlot {
+  time: string;
+  available_technicians: Array<{
+    id: string;
+    name: string;
+  }>;
+  available_count: number;
+}
+
+export interface AvailableTimeSlotsResponse {
+  data: AvailableTimeSlot[];
+}
+
+export async function getAvailableTimeSlots(
+  vendorId: string,
+  date: string,
+  serviceDuration: number
+): Promise<AvailableTimeSlotsResponse> {
+  const token = await getAuthToken();
+
+  const searchParams = new URLSearchParams();
+  searchParams.append('date', date);
+  searchParams.append('service_duration', serviceDuration.toString());
+
+  const response = await fetch(
+    `${API_URL}/customer/vendors/${vendorId}/available-time-slots?${searchParams.toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  return handleResponse<AvailableTimeSlotsResponse>(response);
+}

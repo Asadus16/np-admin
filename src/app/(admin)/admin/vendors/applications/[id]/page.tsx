@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -28,6 +28,7 @@ import {
   clearError,
 } from "@/store/slices/companySlice";
 import dynamic from "next/dynamic";
+import RejectionReasonDialog from "@/components/admin/RejectionReasonDialog";
 
 const StaticLocationMap = dynamic(
   () => import("@/components/maps/StaticLocationMap"),
@@ -43,6 +44,7 @@ export default function VendorApplicationDetailPage() {
   );
 
   const companyId = params.id as string;
+  const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
 
   useEffect(() => {
     if (companyId) {
@@ -62,9 +64,14 @@ export default function VendorApplicationDetailPage() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
+    setRejectionDialogOpen(true);
+  };
+
+  const handleConfirmRejection = async (rejectionReason: string) => {
     try {
-      await dispatch(rejectCompany(companyId)).unwrap();
+      await dispatch(rejectCompany({ id: companyId, rejectionReason })).unwrap();
+      setRejectionDialogOpen(false);
       router.push("/admin/vendors/applications");
     } catch {
       // Error is handled by Redux state
@@ -388,6 +395,15 @@ export default function VendorApplicationDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Rejection Reason Dialog */}
+      <RejectionReasonDialog
+        isOpen={rejectionDialogOpen}
+        onClose={() => setRejectionDialogOpen(false)}
+        onConfirm={handleConfirmRejection}
+        isLoading={isSubmitting}
+        companyName={currentCompany?.name}
+      />
     </div>
   );
 }

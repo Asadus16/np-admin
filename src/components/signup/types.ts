@@ -42,6 +42,8 @@ export interface VendorFormData {
   contactEmail: string;
   mobileNumber: string;
   emiratesId: string;
+  emiratesIdFront: File | null;
+  emiratesIdBack: File | null;
 
   // Step 3 - Services
   selectedCategories: string[];
@@ -58,6 +60,14 @@ export interface VendorFormData {
   iban: string;
   swiftCode: string;
   trn: string;
+
+  // Step 6 - Company Hours
+  companyHours: {
+    [key: string]: {
+      enabled: boolean;
+      slots: Array<{ start: string; end: string }>;
+    };
+  };
 }
 
 export interface CustomerFormData {
@@ -100,9 +110,11 @@ export interface CustomerFormData {
 }
 
 // Serializable versions for localStorage (without File objects)
-export type SerializableVendorFormData = Omit<VendorFormData, "tradeLicenseFile" | "vatCertificateFile" | "services"> & {
+export type SerializableVendorFormData = Omit<VendorFormData, "tradeLicenseFile" | "vatCertificateFile" | "emiratesIdFront" | "emiratesIdBack" | "services"> & {
   tradeLicenseFileName?: string;
   vatCertificateFileName?: string;
+  emiratesIdFrontName?: string;
+  emiratesIdBackName?: string;
   services: Array<Omit<VendorService, "image"> & { imageName?: string }>;
 };
 

@@ -302,7 +302,7 @@ export async function approveCompany(id: string): Promise<CompanyResponse> {
 /**
  * Reject a company (admin)
  */
-export async function rejectCompany(id: string): Promise<CompanyResponse> {
+export async function rejectCompany(id: string, rejectionReason: string): Promise<CompanyResponse> {
   const token = await getAuthToken();
 
   const response = await fetch(`${API_URL}/admin/companies/${id}/reject`, {
@@ -312,6 +312,9 @@ export async function rejectCompany(id: string): Promise<CompanyResponse> {
       'Accept': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
+    body: JSON.stringify({
+      rejection_reason: rejectionReason,
+    }),
   });
 
   return handleResponse<CompanyResponse>(response);

@@ -89,6 +89,8 @@ export interface AddressScheduleStepProps {
   onTimeChange: (time: string) => void;
   recurringFrequency: RecurringFrequency;
   onFrequencyChange: (frequency: RecurringFrequency) => void;
+  vendorId?: string | null;
+  totalDuration?: number;
 }
 
 export interface PaymentStepProps {
