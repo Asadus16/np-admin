@@ -53,22 +53,10 @@ interface ApiError {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { register, sendPhoneOTP } = useAuth();
+  const { register, sendPhoneOTP, token } = useAuth();
 
   // Role selection
-  const [role, setRole] = useState<Role>("admin");
-
-  // Admin form state
-  const [adminFirstName, setAdminFirstName] = useState("");
-  const [adminLastName, setAdminLastName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminConfirmPassword, setAdminConfirmPassword] = useState("");
-  const [adminFirstNameError, setAdminFirstNameError] = useState("");
-  const [adminLastNameError, setAdminLastNameError] = useState("");
-  const [adminEmailError, setAdminEmailError] = useState("");
-  const [adminPasswordError, setAdminPasswordError] = useState("");
-  const [adminConfirmPasswordError, setAdminConfirmPasswordError] = useState("");
+  const [role, setRole] = useState<Role>("vendor");
 
   // Vendor form state
   const [vendorStep, setVendorStep] = useState(0);
@@ -122,7 +110,19 @@ export default function SignupPage() {
           ...parsed,
           tradeLicenseFile: null,
           vatCertificateFile: null,
+          emiratesIdFront: null,
+          emiratesIdBack: null,
           services: restoredServices,
+          // Ensure companyHours is initialized if missing
+          companyHours: parsed.companyHours || {
+            monday: { enabled: false, slots: [] },
+            tuesday: { enabled: false, slots: [] },
+            wednesday: { enabled: false, slots: [] },
+            thursday: { enabled: false, slots: [] },
+            friday: { enabled: false, slots: [] },
+            saturday: { enabled: false, slots: [] },
+            sunday: { enabled: false, slots: [] },
+          },
         });
         // If there's saved vendor data, switch to vendor role
         setRole("vendor");
@@ -152,9 +152,11 @@ export default function SignupPage() {
         ...vendorFormData,
         tradeLicenseFileName: vendorFormData.tradeLicenseFile?.name,
         vatCertificateFileName: vendorFormData.vatCertificateFile?.name,
+        emiratesIdFrontName: vendorFormData.emiratesIdFront?.name,
+        emiratesIdBackName: vendorFormData.emiratesIdBack?.name,
         services: serializableServices,
       };
-      const { tradeLicenseFile, vatCertificateFile, ...rest } = dataToSave as VendorFormData & SerializableVendorFormData;
+      const { tradeLicenseFile, vatCertificateFile, emiratesIdFront, emiratesIdBack, ...rest } = dataToSave as VendorFormData & SerializableVendorFormData;
       localStorage.setItem(VENDOR_STORAGE_KEY, JSON.stringify(rest));
     } catch (error) {
       console.error("Error saving form data:", error);
@@ -299,102 +301,6 @@ export default function SignupPage() {
     }
   }, [role, dataFetched]);
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
-  // Admin form submit
-  const handleAdminSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdminFirstNameError("");
-    setAdminLastNameError("");
-    setAdminEmailError("");
-    setAdminPasswordError("");
-    setAdminConfirmPasswordError("");
-    setGeneralError("");
-
-    if (!adminFirstName) {
-      setAdminFirstNameError("First name is required");
-      return;
-    }
-    if (!adminLastName) {
-      setAdminLastNameError("Last name is required");
-      return;
-    }
-    if (!adminEmail) {
-      setAdminEmailError("Email is required");
-      return;
-    }
-    if (!validateEmail(adminEmail)) {
-      setAdminEmailError("Please enter a valid email address");
-      return;
-    }
-    if (!adminPassword) {
-      setAdminPasswordError("Password is required");
-      return;
-    }
-    if (adminPassword.length < 8) {
-      setAdminPasswordError("Password must be at least 8 characters");
-      return;
-    }
-    if (!adminConfirmPassword) {
-      setAdminConfirmPasswordError("Please confirm your password");
-      return;
-    }
-    if (adminPassword !== adminConfirmPassword) {
-      setAdminConfirmPasswordError("Passwords do not match");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const user = await register({
-        first_name: adminFirstName,
-        last_name: adminLastName,
-        email: adminEmail,
-        password: adminPassword,
-        password_confirmation: adminConfirmPassword,
-        role: "admin",
-      });
-      const redirectPath = getRedirectPathForUser(user);
-      router.push(redirectPath);
-    } catch (error) {
-      const apiError = error as ApiError;
-      if (apiError && typeof apiError === 'object' && 'message' in apiError) {
-        if (apiError.errors) {
-          if (apiError.errors.first_name) setAdminFirstNameError(apiError.errors.first_name[0]);
-          if (apiError.errors.last_name) setAdminLastNameError(apiError.errors.last_name[0]);
-          if (apiError.errors.email) setAdminEmailError(apiError.errors.email[0]);
-          if (apiError.errors.password) setAdminPasswordError(apiError.errors.password[0]);
-          if (!apiError.errors.first_name && !apiError.errors.last_name && !apiError.errors.email && !apiError.errors.password) {
-            setGeneralError(apiError.message);
-          }
-        } else {
-          setGeneralError(apiError.message);
-        }
-      } else if (error instanceof Error) {
-        setGeneralError(error.message);
-      } else {
-        setGeneralError("Registration failed. Please try again.");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const isAdminFormValid =
-    adminFirstName &&
-    adminLastName &&
-    adminEmail &&
-    adminPassword &&
-    adminConfirmPassword &&
-    !adminFirstNameError &&
-    !adminLastNameError &&
-    !adminEmailError &&
-    !adminPasswordError &&
-    !adminConfirmPasswordError;
-
   // Vendor form helpers
   const updateVendorFormData = (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number) => {
     setVendorFormData((prev) => ({ ...prev, [field]: value }));
@@ -430,6 +336,23 @@ export default function SignupPage() {
         if (!vendorFormData.tradeLicenseNumber.trim()) {
           errors.tradeLicenseNumber = "Trade license number is required";
         }
+        // Validate location is within UAE if provided
+        if (vendorFormData.latitude !== null && vendorFormData.longitude !== null) {
+          const UAE_BOUNDS = {
+            minLat: 22.5,
+            maxLat: 26.0,
+            minLng: 51.0,
+            maxLng: 56.4,
+          };
+          if (
+            vendorFormData.latitude < UAE_BOUNDS.minLat ||
+            vendorFormData.latitude > UAE_BOUNDS.maxLat ||
+            vendorFormData.longitude < UAE_BOUNDS.minLng ||
+            vendorFormData.longitude > UAE_BOUNDS.maxLng
+          ) {
+            errors.latitude = "Business location must be within the United Arab Emirates (UAE)";
+          }
+        }
         break;
 
       case 2:
@@ -437,6 +360,9 @@ export default function SignupPage() {
         if (!vendorFormData.contactLastName.trim()) errors.contactLastName = "Last name is required";
         if (!vendorFormData.contactEmail.trim()) errors.contactEmail = "Email is required";
         if (!vendorFormData.mobileNumber.trim()) errors.mobileNumber = "Mobile number is required";
+        if (!vendorFormData.emiratesId.trim()) errors.emiratesId = "Emirates ID number is required";
+        if (!vendorFormData.emiratesIdFront) errors.emiratesIdFront = "Emirates ID front side is required";
+        if (!vendorFormData.emiratesIdBack) errors.emiratesIdBack = "Emirates ID back side is required";
         break;
 
       case 3:
@@ -457,6 +383,10 @@ export default function SignupPage() {
         if (!vendorFormData.accountHolderName.trim()) errors.accountHolderName = "Account holder name is required";
         if (!vendorFormData.iban.trim()) errors.iban = "IBAN is required";
         break;
+
+      case 6:
+        // Company hours validation is optional - no errors if not set
+        break;
     }
 
     setVendorFieldErrors(errors);
@@ -465,7 +395,7 @@ export default function SignupPage() {
 
   const handleVendorNext = async () => {
     if (!validateVendorStep(vendorStep)) return;
-    if (vendorStep < 5) {
+    if (vendorStep < 6) {
       setVendorStep((prev) => prev + 1);
     }
   };
@@ -477,7 +407,7 @@ export default function SignupPage() {
   };
 
   const handleVendorSubmit = async () => {
-    if (!validateVendorStep(5)) return;
+    if (!validateVendorStep(6)) return;
 
     setIsLoading(true);
     setGeneralError("");
@@ -520,6 +450,8 @@ export default function SignupPage() {
         contact_email: vendorFormData.contactEmail || undefined,
         phone: vendorFormData.mobileNumber || undefined,
         emirates_id: vendorFormData.emiratesId || undefined,
+        emirates_id_front: vendorFormData.emiratesIdFront || undefined,
+        emirates_id_back: vendorFormData.emiratesIdBack || undefined,
         // Services & service areas
         category_id: vendorFormData.selectedCategories[0] || undefined,
         service_area_ids: vendorFormData.selectedServiceAreas,
@@ -533,6 +465,66 @@ export default function SignupPage() {
         swift_code: vendorFormData.swiftCode || undefined,
         trn: vendorFormData.trn || undefined,
       });
+
+      // Save company hours after successful registration
+      const companyHoursToSave = vendorFormData.companyHours;
+      // Get token from localStorage (saved by useAuth hook after registration)
+      const authData = typeof window !== 'undefined' ? localStorage.getItem('np_admin_auth') : null;
+      const tokenData = typeof window !== 'undefined' ? localStorage.getItem('np_admin_token') : null;
+      const registrationToken = tokenData || token;
+
+      // Save company hours after successful registration
+      if (companyHoursToSave) {
+        try {
+          const dayOrder: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'> = 
+            ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+          
+          const hours = dayOrder.map((day) => {
+            const daySchedule = companyHoursToSave[day];
+            const slots = daySchedule.enabled && daySchedule.slots.length > 0
+              ? daySchedule.slots.map((slot) => {
+                  // Normalize time format to HH:mm
+                  const normalizeTime = (time: string): string => {
+                    if (time.length === 5) return time; // Already HH:mm
+                    if (time.length === 8) return time.substring(0, 5); // HH:mm:ss -> HH:mm
+                    return time;
+                  };
+                  return {
+                    start_time: normalizeTime(slot.start),
+                    end_time: normalizeTime(slot.end),
+                  };
+                })
+              : [];
+
+            return {
+              day,
+              is_available: daySchedule.enabled && slots.length > 0,
+              slots,
+            };
+          });
+
+          // Save company hours using the registration token
+          const { API_BASE_URL } = await import('@/config');
+          const response = await fetch(`${API_BASE_URL}/vendor/company-hours`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': `Bearer ${registrationToken}`,
+            },
+            body: JSON.stringify({ hours }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Error saving company hours:', errorData);
+            // Don't fail registration if company hours save fails
+          }
+        } catch (error) {
+          console.error('Error saving company hours:', error);
+          // Don't fail registration if company hours save fails
+        }
+      }
 
       clearSavedProgress();
       setIsVendorSubmitted(true);
@@ -558,6 +550,8 @@ export default function SignupPage() {
           contact_email: "contactEmail",
           phone: "mobileNumber",
           emirates_id: "emiratesId",
+          emirates_id_front: "emiratesIdFront",
+          emirates_id_back: "emiratesIdBack",
           category_id: "selectedCategories",
           service_area_ids: "selectedServiceAreas",
           services: "services",
@@ -581,7 +575,7 @@ export default function SignupPage() {
         const errorSteps: Record<string, number> = {
           firstName: 0, lastName: 0, email: 0, password: 0,
           companyName: 1, companyEmail: 1, tradeLicenseNumber: 1, description: 1, businessLandline: 1, website: 1, establishmentDate: 1,
-          contactFirstName: 2, contactLastName: 2, designation: 2, contactEmail: 2, mobileNumber: 2, emiratesId: 2,
+          contactFirstName: 2, contactLastName: 2, designation: 2, contactEmail: 2, mobileNumber: 2, emiratesId: 2, emiratesIdFront: 2, emiratesIdBack: 2,
           selectedCategories: 3, services: 3,
           selectedServiceAreas: 4,
           tradeLicenseFile: 5, vatCertificateFile: 5, bankName: 5, accountHolderName: 5, iban: 5, swiftCode: 5, trn: 5,
@@ -908,6 +902,8 @@ export default function SignupPage() {
     serviceAreasLoading,
     tradeLicenseInputRef: tradeLicenseRef as React.RefObject<HTMLInputElement>,
     vatCertificateInputRef: vatCertificateRef as React.RefObject<HTMLInputElement>,
+    emiratesIdFrontRef: emiratesIdFrontRef as React.RefObject<HTMLInputElement>,
+    emiratesIdBackRef: emiratesIdBackRef as React.RefObject<HTMLInputElement>,
   });
 
   // Get customer step renderers from CustomerSteps component
@@ -934,6 +930,7 @@ export default function SignupPage() {
       case 3: return vendorStepRenderers.renderStep3();
       case 4: return vendorStepRenderers.renderStep4();
       case 5: return vendorStepRenderers.renderStep5();
+      case 6: return vendorStepRenderers.renderStep6();
       default: return null;
     }
   };
@@ -992,136 +989,6 @@ export default function SignupPage() {
     </div>
   );
 
-  // Render Admin Form
-  const renderAdminForm = () => (
-    <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4 w-full">
-      {/* Name Fields Row */}
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
-          <input
-            type="text"
-            value={adminFirstName}
-            onChange={(e) => {
-              setAdminFirstName(e.target.value);
-              setAdminFirstNameError("");
-            }}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
-              adminFirstNameError
-                ? "border-red-500 focus:ring-red-500/20"
-                : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
-            }`}
-            placeholder="John"
-          />
-          {adminFirstNameError && (
-            <p className="text-sm text-red-500 mt-1">{adminFirstNameError}</p>
-          )}
-        </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-          <input
-            type="text"
-            value={adminLastName}
-            onChange={(e) => {
-              setAdminLastName(e.target.value);
-              setAdminLastNameError("");
-            }}
-            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
-              adminLastNameError
-                ? "border-red-500 focus:ring-red-500/20"
-                : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
-            }`}
-            placeholder="Doe"
-          />
-          {adminLastNameError && (
-            <p className="text-sm text-red-500 mt-1">{adminLastNameError}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Email Field */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-        <input
-          type="email"
-          value={adminEmail}
-          onChange={(e) => {
-            setAdminEmail(e.target.value);
-            setAdminEmailError("");
-          }}
-          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
-            adminEmailError
-              ? "border-red-500 focus:ring-red-500/20"
-              : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
-          }`}
-          placeholder="john@example.com"
-        />
-        {adminEmailError && (
-          <p className="text-sm text-red-500 mt-1">{adminEmailError}</p>
-        )}
-      </div>
-
-      {/* Password Field */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-        <input
-          type="password"
-          value={adminPassword}
-          onChange={(e) => {
-            setAdminPassword(e.target.value);
-            setAdminPasswordError("");
-          }}
-          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
-            adminPasswordError
-              ? "border-red-500 focus:ring-red-500/20"
-              : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
-          }`}
-          placeholder="Create a password"
-        />
-        {adminPasswordError && (
-          <p className="text-sm text-red-500 mt-1">{adminPasswordError}</p>
-        )}
-      </div>
-
-      {/* Confirm Password Field */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-        <input
-          type="password"
-          value={adminConfirmPassword}
-          onChange={(e) => {
-            setAdminConfirmPassword(e.target.value);
-            setAdminConfirmPasswordError("");
-          }}
-          className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 ${
-            adminConfirmPasswordError
-              ? "border-red-500 focus:ring-red-500/20"
-              : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
-          }`}
-          placeholder="Confirm your password"
-        />
-        {adminConfirmPasswordError && (
-          <p className="text-sm text-red-500 mt-1">{adminConfirmPasswordError}</p>
-        )}
-      </div>
-
-      {/* Submit Button */}
-      <button
-        type="submit"
-        disabled={isLoading || !isAdminFormValid}
-        className="w-full py-3 px-4 text-white bg-blue-600 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Creating account...
-          </>
-        ) : (
-          "Create Account"
-        )}
-      </button>
-    </form>
-  );
 
   // Render Vendor Form
   const renderVendorForm = () => {
@@ -1162,7 +1029,7 @@ export default function SignupPage() {
             <div />
           )}
 
-          {vendorStep === 5 ? (
+          {vendorStep === 6 ? (
             <button
               type="button"
               onClick={handleVendorSubmit}
@@ -1322,7 +1189,7 @@ export default function SignupPage() {
         </div>
 
         {/* Form Container */}
-        <div className={`flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto ${role === "admin" ? "justify-center" : "justify-start"}`}>
+        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto justify-start">
           <div className="w-full max-w-md mx-auto">
             {/* Header Text */}
             <div className="text-left mb-6">
@@ -1341,55 +1208,53 @@ export default function SignupPage() {
             </div>
 
             {/* General Error */}
-            {generalError && role === "admin" && (
+            {generalError && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">{generalError}</p>
               </div>
             )}
 
-            {/* Role Selection - Only show for admin */}
-            {role === "admin" && (
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  I want to sign up as
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole("admin")}
-                    disabled={isLoading}
-                    className="flex-1 py-3 px-3 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 bg-blue-600 text-white border-blue-600"
-                  >
-                    Admin
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("vendor")}
-                    disabled={isLoading}
-                    className="flex-1 py-3 px-3 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 bg-white text-gray-700 border-gray-300 hover:border-gray-400"
-                  >
-                    <Store className="w-4 h-4 inline mr-1" />
-                    Vendor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole("customer")}
-                    disabled={isLoading}
-                    className="flex-1 py-3 px-3 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 bg-white text-gray-700 border-gray-300 hover:border-gray-400"
-                  >
-                    <Users className="w-4 h-4 inline mr-1" />
-                    Customer
-                  </button>
-                </div>
+            {/* Role Selection */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                I want to sign up as
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRole("vendor")}
+                  disabled={isLoading}
+                  className={`flex-1 py-3 px-3 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 ${
+                    role === "vendor"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  <Store className="w-4 h-4 inline mr-1" />
+                  Vendor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole("customer")}
+                  disabled={isLoading}
+                  className={`flex-1 py-3 px-3 text-sm font-medium rounded-lg border transition-all duration-200 disabled:opacity-50 ${
+                    role === "customer"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                  }`}
+                >
+                  <Users className="w-4 h-4 inline mr-1" />
+                  Customer
+                </button>
               </div>
-            )}
+            </div>
 
-            {/* Back to signup for vendor */}
-            {role === "vendor" && !isVendorSubmitted && (
+            {/* Back to role selection for vendor */}
+            {role === "vendor" && !isVendorSubmitted && vendorStep > 0 && (
               <button
                 type="button"
                 onClick={() => {
-                  setRole("admin");
+                  setRole("vendor");
                   setVendorStep(0);
                   setVendorFieldErrors({});
                   setGeneralError("");
@@ -1397,16 +1262,16 @@ export default function SignupPage() {
                 className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Back to signup
+                Back to role selection
               </button>
             )}
 
-            {/* Back to signup for customer */}
-            {role === "customer" && !isCustomerSubmitted && (
+            {/* Back to role selection for customer */}
+            {role === "customer" && !isCustomerSubmitted && customerStep > 0 && (
               <button
                 type="button"
                 onClick={() => {
-                  setRole("admin");
+                  setRole("customer");
                   setCustomerStep(0);
                   setCustomerFieldErrors({});
                   setGeneralError("");
@@ -1414,17 +1279,16 @@ export default function SignupPage() {
                 className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
               >
                 <ArrowLeft className="w-4 h-4" />
-                Back to signup
+                Back to role selection
               </button>
             )}
 
             {/* Form Content */}
-            {role === "admin" && renderAdminForm()}
             {role === "vendor" && renderVendorForm()}
             {role === "customer" && renderCustomerForm()}
 
             {/* Sign in link */}
-            {(role === "admin" || (role === "vendor" && !isVendorSubmitted) || (role === "customer" && !isCustomerSubmitted)) && (
+            {((role === "vendor" && !isVendorSubmitted) || (role === "customer" && !isCustomerSubmitted)) && (
               <div className="mt-6 text-center">
                 <p className="text-sm text-gray-600">
                   Already have an account?{" "}

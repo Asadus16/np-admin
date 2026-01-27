@@ -11,6 +11,7 @@ import {
   clearError,
 } from "@/store/slices/companySlice";
 import { Company } from "@/lib/company";
+import RejectionReasonDialog from "@/components/admin/RejectionReasonDialog";
 
 export default function VendorApplicationsPage() {
   const router = useRouter();
@@ -21,6 +22,11 @@ export default function VendorApplicationsPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [rejectionDialog, setRejectionDialog] = useState<{ isOpen: boolean; companyId: string | null; companyName: string | null }>({
+    isOpen: false,
+    companyId: null,
+    companyName: null,
+  });
 
   useEffect(() => {
     dispatch(fetchPendingCompanies(1));
@@ -41,10 +47,21 @@ export default function VendorApplicationsPage() {
     }
   };
 
-  const handleReject = async (id: string) => {
-    setActionInProgress(id);
+  const handleReject = (id: string, companyName: string) => {
+    setRejectionDialog({
+      isOpen: true,
+      companyId: id,
+      companyName: companyName,
+    });
+  };
+
+  const handleConfirmRejection = async (rejectionReason: string) => {
+    if (!rejectionDialog.companyId) return;
+
+    setActionInProgress(rejectionDialog.companyId);
     try {
-      await dispatch(rejectCompany(id)).unwrap();
+      await dispatch(rejectCompany({ id: rejectionDialog.companyId, rejectionReason })).unwrap();
+      setRejectionDialog({ isOpen: false, companyId: null, companyName: null });
     } catch {
       // Error is handled by Redux state
     } finally {
@@ -183,7 +200,7 @@ export default function VendorApplicationsPage() {
                           )}
                         </button>
                         <button
-                          onClick={() => handleReject(company.id)}
+                          onClick={() => handleReject(company.id, company.name)}
                           disabled={isSubmitting && actionInProgress === company.id}
                           className="p-1.5 rounded hover:bg-red-50 text-red-600 disabled:opacity-50"
                           title="Reject"
@@ -231,6 +248,15 @@ export default function VendorApplicationsPage() {
           </div>
         )}
       </div>
+
+      {/* Rejection Reason Dialog */}
+      <RejectionReasonDialog
+        isOpen={rejectionDialog.isOpen}
+        onClose={() => setRejectionDialog({ isOpen: false, companyId: null, companyName: null })}
+        onConfirm={handleConfirmRejection}
+        isLoading={isSubmitting && actionInProgress === rejectionDialog.companyId}
+        companyName={rejectionDialog.companyName || undefined}
+      />
     </div>
   );
 }

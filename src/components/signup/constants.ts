@@ -8,6 +8,7 @@ import {
   Phone,
   CreditCard,
   Home,
+  Clock,
 } from "lucide-react";
 import { VendorFormData, CustomerFormData } from "./types";
 
@@ -19,6 +20,7 @@ export const VENDOR_STEPS = [
   { id: 3, name: "Services", icon: Briefcase },
   { id: 4, name: "Service Areas", icon: MapPin },
   { id: 5, name: "Legal & Bank", icon: FileText },
+  { id: 6, name: "Company Hours", icon: Clock },
 ];
 
 // Customer step definitions
@@ -94,6 +96,8 @@ export const initialVendorFormData: VendorFormData = {
   contactEmail: "",
   mobileNumber: "",
   emiratesId: "",
+  emiratesIdFront: null,
+  emiratesIdBack: null,
   // Step 3
   selectedCategories: [],
   services: [],
@@ -107,6 +111,16 @@ export const initialVendorFormData: VendorFormData = {
   iban: "",
   swiftCode: "",
   trn: "",
+  // Step 6
+  companyHours: {
+    monday: { enabled: false, slots: [] },
+    tuesday: { enabled: false, slots: [] },
+    wednesday: { enabled: false, slots: [] },
+    thursday: { enabled: false, slots: [] },
+    friday: { enabled: false, slots: [] },
+    saturday: { enabled: false, slots: [] },
+    sunday: { enabled: false, slots: [] },
+  },
 };
 
 export const initialCustomerFormData: CustomerFormData = {

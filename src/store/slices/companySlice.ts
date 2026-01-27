@@ -146,9 +146,9 @@ export const approveCompany = createAsyncThunk(
 
 export const rejectCompany = createAsyncThunk(
   'company/reject',
-  async (id: string, { rejectWithValue }) => {
+  async ({ id, rejectionReason }: { id: string; rejectionReason: string }, { rejectWithValue }) => {
     try {
-      const response = await apiRejectCompany(id);
+      const response = await apiRejectCompany(id, rejectionReason);
       return response.data;
     } catch (error) {
       if (error instanceof ApiException) {

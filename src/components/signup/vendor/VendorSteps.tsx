@@ -14,7 +14,11 @@ import {
   ImageIcon,
   Briefcase,
   MapPin,
+  Shield,
+  X,
+  Clock,
 } from "lucide-react";
+import { DayOfWeek } from "@/types/companyHours";
 
 interface VendorStepsProps {
   formData: VendorFormData;
@@ -27,6 +31,8 @@ interface VendorStepsProps {
   // File input refs
   tradeLicenseInputRef: React.RefObject<HTMLInputElement>;
   vatCertificateInputRef: React.RefObject<HTMLInputElement>;
+  emiratesIdFrontRef: React.RefObject<HTMLInputElement>;
+  emiratesIdBackRef: React.RefObject<HTMLInputElement>;
 }
 
 export function useVendorServiceHelpers(
@@ -144,6 +150,8 @@ export default function VendorSteps({
   serviceAreasLoading,
   tradeLicenseInputRef,
   vatCertificateInputRef,
+  emiratesIdFrontRef,
+  emiratesIdBackRef,
 }: VendorStepsProps) {
   const {
     addService,
@@ -402,6 +410,7 @@ export default function VendorSteps({
           }}
           height="180px"
           autoFetch
+          restrictToUAE={true}
         />
         {(formData.latitude && formData.longitude) && (
           <p className="text-xs text-blue-600 mt-1">
@@ -508,14 +517,141 @@ export default function VendorSteps({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">Emirates ID</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Emirates ID Number</label>
         <input
           type="text"
           value={formData.emiratesId}
           onChange={(e) => updateFormData("emiratesId", e.target.value)}
           placeholder="784-XXXX-XXXXXXX-X"
-          className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
+            fieldErrors.emiratesId
+              ? "border-red-500 focus:ring-red-500/20"
+              : "border-gray-300 focus:ring-blue-500/20 focus:border-blue-500"
+          }`}
         />
+        {fieldErrors.emiratesId && (
+          <p className="text-xs text-red-500 mt-1">{fieldErrors.emiratesId}</p>
+        )}
+      </div>
+
+      {/* Emirates ID Front and Back Upload */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Emirates ID Documents</label>
+        <div className="grid grid-cols-2 gap-3">
+          {/* Emirates ID Front */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center ${
+              fieldErrors.emiratesIdFront ? "border-red-400" : "border-gray-300"
+            }`}
+          >
+            <Shield className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Front Side</p>
+            <p className="text-xs text-gray-500 mb-2">JPG/PNG (Required)</p>
+            {formData.emiratesIdFront ? (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs text-green-600 truncate max-w-full">
+                  {formData.emiratesIdFront.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => emiratesIdFrontRef.current?.click()}
+                    className="px-3 py-1 text-xs font-medium text-green-600 border border-green-300 rounded hover:bg-green-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateFormData("emiratesIdFront", null)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => emiratesIdFrontRef.current?.click()}
+                className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Upload
+              </button>
+            )}
+            <input
+              ref={emiratesIdFrontRef}
+              type="file"
+              accept=".jpg,.jpeg,.png"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                updateFormData("emiratesIdFront", file);
+              }}
+              className="hidden"
+            />
+          </div>
+
+          {/* Emirates ID Back */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-4 text-center ${
+              fieldErrors.emiratesIdBack ? "border-red-400" : "border-gray-300"
+            }`}
+          >
+            <Shield className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-gray-900">Back Side</p>
+            <p className="text-xs text-gray-500 mb-2">JPG/PNG (Required)</p>
+            {formData.emiratesIdBack ? (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs text-green-600 truncate max-w-full">
+                  {formData.emiratesIdBack.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => emiratesIdBackRef.current?.click()}
+                    className="px-3 py-1 text-xs font-medium text-green-600 border border-green-300 rounded hover:bg-green-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateFormData("emiratesIdBack", null)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => emiratesIdBackRef.current?.click()}
+                className="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Upload
+              </button>
+            )}
+            <input
+              ref={emiratesIdBackRef}
+              type="file"
+              accept=".jpg,.jpeg,.png"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                updateFormData("emiratesIdBack", file);
+              }}
+              className="hidden"
+            />
+          </div>
+        </div>
+        {(fieldErrors.emiratesIdFront || fieldErrors.emiratesIdBack) && (
+          <p className="text-xs text-red-500 mt-2">
+            {fieldErrors.emiratesIdFront || fieldErrors.emiratesIdBack}
+          </p>
+        )}
+        <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+          <p className="text-xs text-blue-700">
+            Your Emirates ID information is securely stored and used only for verification purposes.
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -970,6 +1106,172 @@ export default function VendorSteps({
     </div>
   );
 
+  // Step 6 - Company Hours
+  const renderStep6 = () => {
+    const dayOrder: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const dayNames: Record<DayOfWeek, string> = {
+      monday: 'Monday',
+      tuesday: 'Tuesday',
+      wednesday: 'Wednesday',
+      thursday: 'Thursday',
+      friday: 'Friday',
+      saturday: 'Saturday',
+      sunday: 'Sunday',
+    };
+
+    // Ensure companyHours is initialized with all days
+    const companyHours = formData.companyHours || {
+      monday: { enabled: false, slots: [] },
+      tuesday: { enabled: false, slots: [] },
+      wednesday: { enabled: false, slots: [] },
+      thursday: { enabled: false, slots: [] },
+      friday: { enabled: false, slots: [] },
+      saturday: { enabled: false, slots: [] },
+      sunday: { enabled: false, slots: [] },
+    };
+
+    // Ensure all days exist in companyHours
+    dayOrder.forEach((day) => {
+      if (!companyHours[day]) {
+        companyHours[day] = { enabled: false, slots: [] };
+      }
+    });
+
+    const toggleDay = (day: DayOfWeek) => {
+      const currentDay = companyHours[day] || { enabled: false, slots: [] };
+      updateFormData("companyHours", {
+        ...companyHours,
+        [day]: {
+          enabled: !currentDay.enabled,
+          slots: !currentDay.enabled ? [{ start: "09:00", end: "17:00" }] : [],
+        },
+      });
+    };
+
+    const addSlot = (day: DayOfWeek) => {
+      const currentDay = companyHours[day] || { enabled: false, slots: [] };
+      updateFormData("companyHours", {
+        ...companyHours,
+        [day]: {
+          ...currentDay,
+          slots: [...currentDay.slots, { start: "09:00", end: "17:00" }],
+        },
+      });
+    };
+
+    const removeSlot = (day: DayOfWeek, index: number) => {
+      const currentDay = companyHours[day] || { enabled: false, slots: [] };
+      const newSlots = currentDay.slots.filter((_, i) => i !== index);
+      updateFormData("companyHours", {
+        ...companyHours,
+        [day]: {
+          enabled: newSlots.length > 0,
+          slots: newSlots,
+        },
+      });
+    };
+
+    const updateSlot = (day: DayOfWeek, index: number, field: "start" | "end", value: string) => {
+      const currentDay = companyHours[day] || { enabled: false, slots: [] };
+      const newSlots = [...currentDay.slots];
+      newSlots[index] = { ...newSlots[index], [field]: value };
+      updateFormData("companyHours", {
+        ...companyHours,
+        [day]: { ...currentDay, slots: newSlots },
+      });
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="mb-3">
+          <h3 className="text-lg font-semibold text-gray-900">Company Hours</h3>
+          <p className="text-sm text-gray-500">Set your business working hours for each day of the week</p>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="divide-y divide-gray-200">
+            {dayOrder.map((day) => (
+              <div key={day} className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        (companyHours[day]?.enabled) ? "bg-green-500" : "bg-gray-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          (companyHours[day]?.enabled) ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-gray-900">{dayNames[day]}</span>
+                  </div>
+                  {companyHours[day]?.enabled && (
+                    <button
+                      type="button"
+                      onClick={() => addSlot(day)}
+                      className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add slot
+                    </button>
+                  )}
+                </div>
+
+                {companyHours[day]?.enabled && (
+                  <div className="ml-14 space-y-2">
+                    {(companyHours[day]?.slots || []).map((slot, index) => (
+                      <div key={index} className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-gray-400" />
+                          <input
+                            type="time"
+                            value={slot.start}
+                            onChange={(e) => updateSlot(day, index, "start", e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                          <span className="text-gray-500">to</span>
+                          <input
+                            type="time"
+                            value={slot.end}
+                            onChange={(e) => updateSlot(day, index, "end", e.target.value)}
+                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                        {(companyHours[day]?.slots || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSlot(day, index)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!companyHours[day]?.enabled && (
+                  <p className="ml-14 text-sm text-gray-400">Unavailable</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-3 bg-blue-50 rounded-lg">
+          <p className="text-xs text-blue-700">
+            You can add multiple time slots per day. For example, you can set morning hours (9:00 AM - 12:00 PM) and afternoon hours (2:00 PM - 6:00 PM).
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return {
     renderStep0,
     renderStep1,
@@ -977,5 +1279,6 @@ export default function VendorSteps({
     renderStep3,
     renderStep4,
     renderStep5,
+    renderStep6,
   };
 }

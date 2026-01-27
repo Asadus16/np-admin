@@ -10,6 +10,7 @@ interface LeafletMapProps {
   markerPosition: [number, number] | null;
   onLocationChange: (lat: number, lng: number) => void;
   triggerPan: number;
+  restrictToUAE?: boolean; // Restrict map bounds to UAE only
 }
 
 // Fix for default marker icon in Leaflet with webpack/Next.js
@@ -24,26 +25,90 @@ const customIcon = L.icon({
 });
 
 // Component to handle map click events
-function MapClickHandler({ onLocationChange }: { onLocationChange: (lat: number, lng: number) => void }) {
+function MapClickHandler({ 
+  onLocationChange, 
+  restrictToUAE 
+}: { 
+  onLocationChange: (lat: number, lng: number) => void;
+  restrictToUAE?: boolean;
+}) {
   useMapEvents({
     click: (e) => {
-      onLocationChange(e.latlng.lat, e.latlng.lng);
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      
+      // Validate UAE bounds if restriction is enabled
+      if (restrictToUAE) {
+        const [sw, ne] = UAE_BOUNDS;
+        if (lat < sw[0] || lat > ne[0] || lng < sw[1] || lng > ne[1]) {
+          alert("Please select a location within the United Arab Emirates (UAE)");
+          return;
+        }
+      }
+      
+      onLocationChange(lat, lng);
     },
   });
   return null;
 }
 
 // Component to control map view
-function MapController({ center, triggerPan }: { center: [number, number]; triggerPan: number }) {
+function MapController({ 
+  center, 
+  triggerPan, 
+  restrictToUAE 
+}: { 
+  center: [number, number]; 
+  triggerPan: number;
+  restrictToUAE?: boolean;
+}) {
   const map = useMap();
   const prevTriggerPan = useRef(triggerPan);
+  const hasSetUAEView = useRef(false);
 
   useEffect(() => {
-    if (triggerPan !== prevTriggerPan.current) {
-      map.setView(center, 15);
+    // Set initial UAE view if restriction is enabled
+    if (restrictToUAE && !hasSetUAEView.current) {
+      const bounds = L.latLngBounds(UAE_BOUNDS);
+      map.fitBounds(bounds, { padding: [20, 20] });
+      hasSetUAEView.current = true;
+    } else if (triggerPan !== prevTriggerPan.current) {
+      // Only pan to center if it's within UAE bounds when restricted
+      if (restrictToUAE) {
+        const [sw, ne] = UAE_BOUNDS;
+        const [lat, lng] = center;
+        if (lat >= sw[0] && lat <= ne[0] && lng >= sw[1] && lng <= ne[1]) {
+          map.setView(center, Math.min(map.getZoom(), 15));
+        }
+      } else {
+        map.setView(center, 15);
+      }
       prevTriggerPan.current = triggerPan;
     }
-  }, [map, center, triggerPan]);
+  }, [map, center, triggerPan, restrictToUAE]);
+
+  // Ensure map stays within UAE bounds
+  useEffect(() => {
+    if (!restrictToUAE) return;
+
+    const checkBounds = () => {
+      const bounds = map.getBounds();
+      const uaeBounds = L.latLngBounds(UAE_BOUNDS);
+      
+      // If map view is outside UAE, fit to UAE bounds
+      if (!uaeBounds.contains(bounds)) {
+        map.fitBounds(uaeBounds, { padding: [20, 20] });
+      }
+    };
+
+    map.on('moveend', checkBounds);
+    map.on('zoomend', checkBounds);
+
+    return () => {
+      map.off('moveend', checkBounds);
+      map.off('zoomend', checkBounds);
+    };
+  }, [map, restrictToUAE]);
 
   return null;
 }
@@ -82,11 +147,21 @@ function DraggableMarker({
   );
 }
 
+// UAE boundaries for map restriction
+const UAE_BOUNDS: [[number, number], [number, number]] = [
+  [22.5, 51.0], // Southwest corner (minLat, minLng)
+  [26.0, 56.4], // Northeast corner (maxLat, maxLng)
+];
+
+// UAE center point (Dubai area)
+const UAE_CENTER: [number, number] = [24.4539, 54.3773];
+
 export default function LeafletMap({
   center,
   markerPosition,
   onLocationChange,
   triggerPan,
+  restrictToUAE = false,
 }: LeafletMapProps) {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -111,26 +186,45 @@ export default function LeafletMap({
     );
   }
 
+  // Determine initial center and zoom based on restriction
+  const initialCenter = restrictToUAE ? UAE_CENTER : center;
+  const initialZoom = restrictToUAE ? 8 : (markerPosition ? 15 : 12);
+
   return (
     <MapContainer
-      center={center}
-      zoom={markerPosition ? 15 : 12}
+      center={initialCenter}
+      zoom={initialZoom}
       style={{ width: "100%", height: "100%" }}
       scrollWheelZoom={true}
-      key={`map-${center[0]}-${center[1]}-${isMounted}`}
+      key={`map-${restrictToUAE ? 'uae' : center[0]}-${restrictToUAE ? 'restricted' : center[1]}-${isMounted}`}
+      maxBounds={restrictToUAE ? UAE_BOUNDS : undefined}
+      maxBoundsViscosity={restrictToUAE ? 1.0 : undefined}
+      minZoom={restrictToUAE ? 7 : undefined}
+      maxZoom={18}
     >
       <TileLayer
         attribution='Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ'
         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
       />
-      <MapClickHandler onLocationChange={onLocationChange} />
+      <MapClickHandler onLocationChange={onLocationChange} restrictToUAE={restrictToUAE} />
       {markerPosition && (
         <DraggableMarker
           position={markerPosition}
-          onPositionChange={onLocationChange}
+          onPositionChange={restrictToUAE ? (lat, lng) => {
+            const [sw, ne] = UAE_BOUNDS;
+            if (lat < sw[0] || lat > ne[0] || lng < sw[1] || lng > ne[1]) {
+              alert("Please select a location within the United Arab Emirates (UAE)");
+              return;
+            }
+            onLocationChange(lat, lng);
+          } : onLocationChange}
         />
       )}
-      <MapController center={markerPosition || center} triggerPan={triggerPan} />
+      <MapController 
+        center={markerPosition || center} 
+        triggerPan={triggerPan} 
+        restrictToUAE={restrictToUAE}
+      />
     </MapContainer>
   );
 }

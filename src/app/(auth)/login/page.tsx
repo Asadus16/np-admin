@@ -95,6 +95,9 @@ export default function LoginPage() {
       if (apiError && typeof apiError === 'object' && 'message' in apiError) {
         if (apiError.status === 401) {
           setGeneralError("Invalid email or password");
+        } else if (apiError.status === 403) {
+          // Show the specific message from backend (e.g., company not approved)
+          setGeneralError(apiError.message);
         } else if (apiError.errors) {
           if (apiError.errors.email) {
             setEmailError(apiError.errors.email[0]);
@@ -190,7 +193,10 @@ export default function LoginPage() {
       console.error("Verify OTP error:", error);
       const apiError = error as ApiError;
       if (apiError && typeof apiError === 'object' && 'message' in apiError) {
-        if (apiError.status === 401 || apiError.message.includes("invalid") || apiError.message.includes("expired")) {
+        if (apiError.status === 403) {
+          // Show the specific message from backend (e.g., company not approved)
+          setGeneralError(apiError.message);
+        } else if (apiError.status === 401 || apiError.message.includes("invalid") || apiError.message.includes("expired")) {
           setOtpError("Invalid or expired OTP. Please try again.");
         } else {
           setGeneralError(apiError.message || "OTP verification failed. Please try again.");

@@ -1,6 +1,7 @@
 import { User, Role, LoginCredentials, RegisterCredentials, AuthResponse, getPrimaryRole } from '@/types/auth';
 import api, { ApiException } from './api';
 import { API_BASE_URL } from '@/config';
+import { AxiosError } from 'axios';
 
 const AUTH_STORAGE_KEY = 'np_admin_auth';
 const TOKEN_STORAGE_KEY = 'np_admin_token';
@@ -8,7 +9,26 @@ const API_URL = API_BASE_URL;
 
 // API Auth Functions
 export async function apiLogin(credentials: LoginCredentials): Promise<AuthResponse> {
-  return api.post<AuthResponse>('/auth/login', credentials);
+  try {
+    return await api.post<AuthResponse>('/auth/login', credentials);
+  } catch (error) {
+    // Handle AxiosError and extract message from response
+    if (error instanceof AxiosError && error.response) {
+      const message = error.response.data?.message || error.message;
+      const status = error.response.status;
+      const errors = error.response.data?.errors;
+      throw new ApiException(message, status, errors);
+    }
+    // Re-throw if it's already an ApiException
+    if (error instanceof ApiException) {
+      throw error;
+    }
+    // Handle other errors
+    if (error instanceof Error) {
+      throw new ApiException(error.message, 500);
+    }
+    throw new ApiException('Login failed', 500);
+  }
 }
 
 export async function apiRegister(credentials: RegisterCredentials): Promise<AuthResponse> {
@@ -53,6 +73,8 @@ async function apiRegisterVendor(credentials: RegisterCredentials): Promise<Auth
   if (credentials.contact_email) formData.append('contact_email', credentials.contact_email);
   if (credentials.phone) formData.append('phone', credentials.phone);
   if (credentials.emirates_id) formData.append('emirates_id', credentials.emirates_id);
+  if (credentials.emirates_id_front) formData.append('emirates_id_front', credentials.emirates_id_front);
+  if (credentials.emirates_id_back) formData.append('emirates_id_back', credentials.emirates_id_back);
 
   // Services - single category_id
   if (credentials.category_id) formData.append('category_id', credentials.category_id);
@@ -176,10 +198,29 @@ export async function apiGetMe(token: string): Promise<{ user: User }> {
 
 // Phone authentication - exchange Firebase ID token for backend token
 export async function apiLoginWithPhone(firebaseIdToken: string, phoneNumber: string): Promise<AuthResponse> {
-  return api.post<AuthResponse>('/auth/login/phone', {
-    firebase_id_token: firebaseIdToken,
-    phone: phoneNumber,
-  });
+  try {
+    return await api.post<AuthResponse>('/auth/login/phone', {
+      firebase_id_token: firebaseIdToken,
+      phone: phoneNumber,
+    });
+  } catch (error) {
+    // Handle AxiosError and extract message from response
+    if (error instanceof AxiosError && error.response) {
+      const message = error.response.data?.message || error.message;
+      const status = error.response.status;
+      const errors = error.response.data?.errors;
+      throw new ApiException(message, status, errors);
+    }
+    // Re-throw if it's already an ApiException
+    if (error instanceof ApiException) {
+      throw error;
+    }
+    // Handle other errors
+    if (error instanceof Error) {
+      throw new ApiException(error.message, 500);
+    }
+    throw new ApiException('Phone login failed', 500);
+  }
 }
 
 // Storage Functions
