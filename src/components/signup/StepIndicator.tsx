@@ -45,8 +45,7 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
                     isCurrent ? "text-gray-900 font-medium" : "text-gray-500"
                   }`}
                   style={{ 
-                    maxWidth: '70px',
-                    wordBreak: 'break-word',
+                    maxWidth: 'fit-content',
                     lineHeight: '1.2'
                   }}
                 >
@@ -54,6 +53,7 @@ export default function StepIndicator({ steps, currentStep }: StepIndicatorProps
                 </span>
               </div>
               {index < steps.length - 1 && (
+                
                 <div
                   className={`w-6 h-0.5 mx-1 -mt-4 ${
                     currentStep > step.id ? "bg-blue-600" : "bg-gray-300"
