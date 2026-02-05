@@ -1190,7 +1190,7 @@ export default function SignupPage() {
 
         {/* Form Container */}
         <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-6 overflow-y-auto justify-start">
-          <div className="w-full max-w-md mx-auto">
+          <div className="w-full max-w-2xl mx-auto">
             {/* Header Text */}
             <div className="text-left mb-6">
               {/* Desktop Logo */}
