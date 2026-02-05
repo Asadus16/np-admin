@@ -22,7 +22,7 @@ import { DayOfWeek } from "@/types/companyHours";
 
 interface VendorStepsProps {
   formData: VendorFormData;
-  updateFormData: (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number) => void;
+  updateFormData: (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number | VendorFormData["companyHours"]) => void;
   fieldErrors: Record<string, string>;
   categories: Category[];
   categoriesLoading: boolean;

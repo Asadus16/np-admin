@@ -10,6 +10,7 @@ import { fetchServiceAreas } from "@/store/slices/serviceAreaSlice";
 import { getApprovedCompanies } from "@/lib/company";
 import { VendorExclusivePlanFormData } from "@/types/vendorExclusivePlan";
 
+
 interface CompanyOption {
   id: string;
   name: string;
