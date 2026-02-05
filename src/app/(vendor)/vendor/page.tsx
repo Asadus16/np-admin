@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, ClipboardList, Star, Calendar, Clock, Users, Crown, Loader2 } from "lucide-react";
+import { DollarSign, ClipboardList, Star, Calendar, Clock, Users, Crown, Loader2, Award, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -12,11 +12,42 @@ import {
   TopCustomer,
   RecentReview,
 } from "@/lib/vendorDashboard";
+import {
+  getMyExclusivePlans,
+  createExclusivePlanPaymentIntent,
+  confirmExclusivePlanPayment,
+} from "@/lib/vendorExclusivePlanVendor";
+import { VendorExclusivePlan } from "@/types/vendorExclusivePlan";
+import dynamic from "next/dynamic";
+
+const StripeProvider = dynamic(
+  () => import("@/components/stripe/StripeProvider").then((m) => m.default),
+  { ssr: false }
+);
+const PaymentIntentForm = dynamic(
+  () => import("@/components/stripe/PaymentIntentForm").then((m) => m.default),
+  { ssr: false }
+);
 
 export default function VendorDashboard() {
   const { token } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<VendorDashboardData | null>(null);
+  const [exclusivePlans, setExclusivePlans] = useState<VendorExclusivePlan[]>([]);
+  const [purchasingPlan, setPurchasingPlan] = useState<VendorExclusivePlan | null>(null);
+  const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const fetchPlans = async () => {
+    if (!token) return;
+    try {
+      const res = await getMyExclusivePlans(token);
+      setExclusivePlans(res.data ?? []);
+    } catch {
+      setExclusivePlans([]);
+    }
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -24,8 +55,12 @@ export default function VendorDashboard() {
 
       setLoading(true);
       try {
-        const response = await getVendorDashboardData('30d', token);
-        setDashboardData(response.data);
+        const [dashboardRes, plansRes] = await Promise.all([
+          getVendorDashboardData("30d", token),
+          getMyExclusivePlans(token),
+        ]);
+        setDashboardData(dashboardRes.data);
+        setExclusivePlans(plansRes.data ?? []);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       } finally {
@@ -35,6 +70,55 @@ export default function VendorDashboard() {
 
     fetchDashboardData();
   }, [token]);
+
+  useEffect(() => {
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    if (params?.get("exclusive_plan_paid") === "1" && token) {
+      fetchPlans();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [token]);
+
+  const plansToPurchase = exclusivePlans.filter(
+    (p) => p.payment_status === "pending_payment" && p.price != null && p.price > 0
+  );
+  const activePlans = exclusivePlans.filter(
+    (p) => p.payment_status === "paid" || (p.status && !p.price)
+  );
+
+  const handlePurchaseClick = async (plan: VendorExclusivePlan) => {
+    if (!token) return;
+    setPaymentError(null);
+    setPurchasingPlan(plan);
+    try {
+      const res = await createExclusivePlanPaymentIntent(plan.id, token);
+      setPaymentClientSecret(res.client_secret);
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Failed to start payment");
+      setPurchasingPlan(null);
+    }
+  };
+
+  const handlePaymentSuccess = async () => {
+    if (token && purchasingPlan) {
+      try {
+        await confirmExclusivePlanPayment(purchasingPlan.id, token);
+      } catch {
+        // Confirm may fail if webhook already ran or payment still processing; refetch anyway
+      }
+      await fetchPlans();
+    }
+    setPaymentClientSecret(null);
+    setPurchasingPlan(null);
+    setPaymentSubmitting(false);
+  };
+
+  const handlePaymentCancel = () => {
+    setPaymentClientSecret(null);
+    setPurchasingPlan(null);
+    setPaymentSubmitting(false);
+    setPaymentError(null);
+  };
 
   // Format currency helper
   const formatCurrency = (value: number) => {
@@ -306,6 +390,99 @@ export default function VendorDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Exclusive Plans */}
+      <div className="bg-white border border-gray-200 rounded-lg">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-gray-500" />
+            <h2 className="text-lg font-medium text-gray-900">Exclusive Plans</h2>
+          </div>
+        </div>
+        <div className="p-4 space-y-4">
+          <p className="text-sm text-gray-600">
+            Become the exclusive vendor in a service area. Admin assigns plans for you; pay to activate and subscribe.
+          </p>
+          {plansToPurchase.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Plans to purchase</p>
+              <ul className="divide-y divide-gray-100">
+                {plansToPurchase.map((plan) => (
+                  <li key={plan.id} className="py-2 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="text-sm font-medium text-gray-900">
+                        {plan.service_area?.name ?? "—"}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {plan.price != null ? `${Number(plan.price).toFixed(2)} AED` : ""}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePurchaseClick(plan)}
+                      disabled={!!purchasingPlan}
+                      className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                    >
+                      Purchase
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {activePlans.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Your active plans</p>
+              <ul className="divide-y divide-gray-100">
+                {activePlans.map((plan) => (
+                  <li key={plan.id} className="py-2 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="text-sm font-medium text-gray-900">
+                        {plan.service_area?.name ?? "—"}
+                      </span>
+                    </div>
+                    <span className="shrink-0 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {exclusivePlans.length === 0 && (
+            <p className="text-sm text-gray-500">No exclusive plans assigned to you yet. Contact admin.</p>
+          )}
+          {paymentError && (
+            <p className="text-sm text-red-600">{paymentError}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Purchase modal */}
+      {paymentClientSecret && purchasingPlan && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50" onClick={handlePaymentCancel} />
+            <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Pay for exclusive plan</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {purchasingPlan.service_area?.name ?? "—"} — {Number(purchasingPlan.price ?? 0).toFixed(2)} AED
+              </p>
+              <StripeProvider clientSecret={paymentClientSecret}>
+                <PaymentIntentForm
+                  returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}${typeof window !== "undefined" ? window.location.pathname : "/vendor"}?exclusive_plan_paid=1`}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={handlePaymentCancel}
+                  isSubmitting={paymentSubmitting}
+                  setIsSubmitting={setPaymentSubmitting}
+                />
+              </StripeProvider>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

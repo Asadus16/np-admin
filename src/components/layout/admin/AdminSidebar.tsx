@@ -25,6 +25,7 @@ import {
   Settings,
   Coins,
   Star,
+  Award,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchUnreadCount } from "@/store/slices/chatSlice";
@@ -103,6 +104,14 @@ const navigation: NavItem[] = [
     children: [
       { name: "All Service Areas", href: "/admin/service-areas" },
       { name: "Add Service Area", href: "/admin/service-areas/add" },
+    ],
+  },
+  {
+    name: "Vendor Exclusive Plans",
+    icon: <Award className="h-4 w-4" />,
+    children: [
+      { name: "All Plans", href: "/admin/vendor-exclusive-plans" },
+      { name: "Create Plan", href: "/admin/vendor-exclusive-plans/add" },
     ],
   },
   {

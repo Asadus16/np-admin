@@ -5,6 +5,7 @@ import categoryReducer from './slices/categorySlice';
 import companyReducer from './slices/companySlice';
 import analyticsReducer from './slices/analyticsSlice';
 import planReducer from './slices/planSlice';
+import vendorExclusivePlanReducer from './slices/vendorExclusivePlanSlice';
 import chatReducer from './slices/chatSlice';
 import technicianAssignmentReducer from './slices/technicianAssignmentSlice';
 import technicianJobReducer from './slices/technicianJobSlice';
@@ -19,6 +20,7 @@ export const store = configureStore({
     company: companyReducer,
     analytics: analyticsReducer,
     plan: planReducer,
+    vendorExclusivePlan: vendorExclusivePlanReducer,
     chat: chatReducer,
     technicianAssignment: technicianAssignmentReducer,
     technicianJob: technicianJobReducer,
