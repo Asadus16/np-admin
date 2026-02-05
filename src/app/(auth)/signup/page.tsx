@@ -302,7 +302,7 @@ export default function SignupPage() {
   }, [role, dataFetched]);
 
   // Vendor form helpers
-  const updateVendorFormData = (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number) => {
+  const updateVendorFormData = (field: keyof VendorFormData, value: string | string[] | File | null | VendorService[] | number | VendorFormData["companyHours"]) => {
     setVendorFormData((prev) => ({ ...prev, [field]: value }));
     if (vendorFieldErrors[field]) {
       setVendorFieldErrors((prev) => ({ ...prev, [field]: "" }));
