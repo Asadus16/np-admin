@@ -42,22 +42,34 @@ export default function AddVendorExclusivePlanPage() {
   });
 
   useEffect(() => {
+    let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setLoadingOptions(false);
+    }, 8000);
+
     const loadOptions = async () => {
       try {
         const [companiesRes, areasRes] = await Promise.all([
           getApprovedCompanies(1),
           dispatch(fetchServiceAreas(1)).unwrap(),
         ]);
-        setCompanies(companiesRes.data ?? []);
-        setServiceAreas(areasRes?.data ?? []);
+        if (cancelled) return;
+        setCompanies(Array.isArray(companiesRes?.data) ? companiesRes.data : []);
+        setServiceAreas(Array.isArray(areasRes?.data) ? areasRes.data : []);
       } catch {
-        setCompanies([]);
-        setServiceAreas([]);
+        if (!cancelled) {
+          setCompanies([]);
+          setServiceAreas([]);
+        }
       } finally {
-        setLoadingOptions(false);
+        if (!cancelled) setLoadingOptions(false);
       }
     };
     loadOptions();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [dispatch]);
 
   useEffect(() => {
@@ -135,6 +147,13 @@ export default function AddVendorExclusivePlanPage() {
             </div>
           )}
 
+          {loadingOptions && (
+            <p className="text-sm text-gray-500 flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading vendors and service areas…
+            </p>
+          )}
+
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
               <label htmlFor="company_id" className="block text-sm font-medium text-gray-700 mb-1">
@@ -144,9 +163,10 @@ export default function AddVendorExclusivePlanPage() {
                 id="company_id"
                 required
                 value={formData.company_id}
-                onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                onChange={(e) => setFormData((prev) => ({ ...prev, company_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={loadingOptions}
+                aria-label="Select vendor"
               >
                 <option value="">Select vendor</option>
                 {companies.map((c) => (
@@ -168,9 +188,10 @@ export default function AddVendorExclusivePlanPage() {
                 id="service_area_id"
                 required
                 value={formData.service_area_id}
-                onChange={(e) => setFormData({ ...formData, service_area_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                onChange={(e) => setFormData((prev) => ({ ...prev, service_area_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent bg-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={loadingOptions}
+                aria-label="Select service area"
               >
                 <option value="">Select service area</option>
                 {serviceAreas.map((sa) => (

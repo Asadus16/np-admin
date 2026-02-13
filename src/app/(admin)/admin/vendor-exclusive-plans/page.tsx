@@ -7,6 +7,7 @@ import {
   Loader2,
   Pencil,
   Trash2,
+  Eye,
   ChevronLeft,
   ChevronRight,
   Award,
@@ -187,6 +188,13 @@ export default function VendorExclusivePlansPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/admin/vendor-exclusive-plans/${plan.id}`}
+                            className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
                           <Link
                             href={`/admin/vendor-exclusive-plans/${plan.id}/edit`}
                             className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"

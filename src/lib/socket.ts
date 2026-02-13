@@ -78,9 +78,7 @@ export const initializeSocket = (): Socket => {
     return socket;
   }
 
-  // Create new socket only if it doesn't exist
   if (!socket) {
-    console.log('Initializing new socket connection...');
     socket = io(SOCKET_URL, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
@@ -90,31 +88,21 @@ export const initializeSocket = (): Socket => {
       // Auth will be set when connecting via connectSocket()
     });
 
-    // Set up event listeners only once
     socket.on('connect', () => {
-      console.log('[SOCKET] Socket connected, id:', socket?.id);
-      // If we have a stored userId, re-authenticate to rejoin the user room
-      // This handles both initial connection and reconnection scenarios
       if (currentUserId) {
-        console.log('[SOCKET] Auto-authenticating user on connect:', currentUserId);
         socket?.emit('auth', { userId: currentUserId });
       }
     });
 
     socket.on('disconnect', (reason) => {
-      console.log('[SOCKET] Socket disconnected:', reason);
       if (reason === 'io server disconnect') {
-        // Server disconnected, reconnect manually
         socket?.connect();
       }
     });
 
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
+    socket.on('connect_error', () => {});
 
     isInitialized = true;
-    console.log('Socket initialized successfully');
   }
 
   return socket;
@@ -138,9 +126,6 @@ export const connectSocket = (token?: string): void => {
       currentSocket.auth = { token };
     }
     currentSocket.connect();
-    console.log('Connecting socket with auth:', { hasToken: !!token, connected: currentSocket.connected });
-  } else if (currentSocket && currentSocket.connected) {
-    console.log('Socket already connected');
   }
 };
 
@@ -226,13 +211,8 @@ export const emitTyping = (
 ): void => {
   // Get or initialize socket (won't create duplicate)
   const currentSocket = socket || initializeSocket();
-  
-  if (!currentSocket) {
-    console.warn('Cannot emit typing - socket not initialized');
-    return;
-  }
-  
-  // If socket is connected, emit immediately
+  if (!currentSocket) return;
+
   if (currentSocket.connected) {
     currentSocket.emit('typing', {
       conversationId,
@@ -241,10 +221,7 @@ export const emitTyping = (
       userName,
       isTyping,
     });
-    console.log('Emitted typing event:', { conversationId, userId, userEmail, userName, isTyping, connected: true });
   } else {
-    // If not connected, wait for connection then emit
-    console.warn('Socket not connected, waiting for connection before emitting typing...');
     const emitWhenConnected = () => {
       if (currentSocket.connected) {
         currentSocket.emit('typing', {
@@ -254,7 +231,6 @@ export const emitTyping = (
           userName,
           isTyping,
         });
-        console.log('Emitted typing event after connection:', { conversationId, userId, userEmail, userName, isTyping });
         currentSocket.off('connect', emitWhenConnected);
       }
     };
@@ -270,13 +246,7 @@ export const onTyping = (callback: (data: TypingIndicator) => void): void => {
   const currentSocket = socket || initializeSocket();
   
   if (currentSocket) {
-    currentSocket.on('typing', (data) => {
-      console.log('Received typing event:', data);
-      callback(data);
-    });
-    console.log('Typing listener registered');
-  } else {
-    console.error('Cannot register typing listener - socket not initialized');
+    currentSocket.on('typing', (data) => callback(data));
   }
 };
 
@@ -331,13 +301,7 @@ export const onTypingStart = (
   const currentSocket = socket || initializeSocket();
   
   if (currentSocket) {
-    currentSocket.on('typing_start', (data) => {
-      console.log('Received typing_start event:', data);
-      callback(data);
-    });
-    console.log('Typing_start listener registered');
-  } else {
-    console.error('Cannot register typing_start listener - socket not initialized');
+    currentSocket.on('typing_start', (data) => callback(data));
   }
 };
 
@@ -347,17 +311,9 @@ export const onTypingStart = (
 export const onTypingStop = (
   callback: (data: TypingStartStopData) => void
 ): void => {
-  // Get or initialize socket (won't create duplicate)
   const currentSocket = socket || initializeSocket();
-  
   if (currentSocket) {
-    currentSocket.on('typing_stop', (data) => {
-      console.log('Received typing_stop event:', data);
-      callback(data);
-    });
-    console.log('Typing_stop listener registered');
-  } else {
-    console.error('Cannot register typing_stop listener - socket not initialized');
+    currentSocket.on('typing_stop', (data) => callback(data));
   }
 };
 
@@ -486,33 +442,17 @@ export const requestUnreadCount = (): void => {
  * Authenticate user and join user-specific room for notifications
  */
 export const authenticateUser = (userId: number | string): void => {
-  console.log('[SOCKET] authenticateUser called with userId:', userId);
-
-  // Store userId for reconnection scenarios
   currentUserId = userId;
-
   const currentSocket = socket || initializeSocket();
-  if (currentSocket) {
-    console.log('[SOCKET] Socket exists, connected:', currentSocket.connected, 'id:', currentSocket.id);
+  if (!currentSocket) return;
 
-    const sendAuth = () => {
-      currentSocket.emit('auth', { userId });
-      console.log('[SOCKET] Sent auth event with userId:', userId, 'socket id:', currentSocket.id);
-    };
+  const sendAuth = () => currentSocket.emit('auth', { userId });
 
-    if (currentSocket.connected) {
-      sendAuth();
-    } else {
-      // Wait for connection then authenticate
-      currentSocket.once('connect', () => {
-        sendAuth();
-      });
-      // Connect the socket if not already connected
-      currentSocket.connect();
-      console.log('[SOCKET] Connecting socket for user authentication...');
-    }
+  if (currentSocket.connected) {
+    sendAuth();
   } else {
-    console.error('[SOCKET] Failed to get socket instance');
+    currentSocket.once('connect', sendAuth);
+    currentSocket.connect();
   }
 };
 
@@ -532,41 +472,18 @@ export interface SocketNotification {
  * Uses the same pattern as useSocket hook - registers directly with connect fallback
  */
 export const onNotification = (callback: (data: SocketNotification) => void): void => {
-  console.log('[SOCKET] onNotification called');
   const currentSocket = socket || initializeSocket();
+  if (!currentSocket) return;
 
-  if (!currentSocket) {
-    console.error('[SOCKET] Cannot register notification listener - no socket');
-    return;
-  }
+  const notificationHandler = (data: SocketNotification) => callback(data);
+  const registerListener = () => currentSocket.on('notification', notificationHandler);
 
-  // Create the handler function
-  const notificationHandler = (data: SocketNotification) => {
-    console.log('[SOCKET] >>> RECEIVED NOTIFICATION:', data);
-    callback(data);
-  };
-
-  // Function to register the listener
-  const registerListener = () => {
-    console.log('[SOCKET] Registering notification listener, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
-    currentSocket.on('notification', notificationHandler);
-    console.log('[SOCKET] Notification listener registered successfully');
-  };
-
-  // If socket is connected, register immediately
   if (currentSocket.connected) {
-    console.log('[SOCKET] Socket already connected, registering notification listener immediately');
     registerListener();
-    // Store the mapping for cleanup (no connect handler needed)
     notificationHandlers.set(callback, { wrapper: notificationHandler });
   } else {
-    // Socket not connected yet - wait for connection
-    console.log('[SOCKET] Socket not connected, waiting for connect event');
-    const connectHandler = () => {
-      registerListener();
-    };
+    const connectHandler = () => registerListener();
     currentSocket.once('connect', connectHandler);
-    // Store both the wrapper and connect handler for cleanup
     notificationHandlers.set(callback, { wrapper: notificationHandler, connectHandler });
   }
 };
@@ -575,26 +492,16 @@ export const onNotification = (callback: (data: SocketNotification) => void): vo
  * Remove notification listener
  */
 export const offNotification = (callback: (data: SocketNotification) => void): void => {
-  console.log('[SOCKET] offNotification called');
   const currentSocket = socket;
+  if (!currentSocket) return;
 
-  if (currentSocket) {
-    // Get the stored handlers
-    const handlers = notificationHandlers.get(callback);
-    if (handlers) {
-      // Remove the notification listener
-      currentSocket.off('notification', handlers.wrapper);
-      // Also remove the connect handler if it exists (in case connection hasn't happened yet)
-      if (handlers.connectHandler) {
-        currentSocket.off('connect', handlers.connectHandler);
-      }
-      notificationHandlers.delete(callback);
-      console.log('[SOCKET] Notification listener removed successfully');
-    } else {
-      // Fallback: try to remove the callback directly (legacy behavior)
-      currentSocket.off('notification', callback);
-      console.log('[SOCKET] Notification listener removed (fallback)');
-    }
+  const handlers = notificationHandlers.get(callback);
+  if (handlers) {
+    currentSocket.off('notification', handlers.wrapper);
+    if (handlers.connectHandler) currentSocket.off('connect', handlers.connectHandler);
+    notificationHandlers.delete(callback);
+  } else {
+    currentSocket.off('notification', callback);
   }
 };
 
@@ -641,147 +548,74 @@ export const enableSocketDebug = (): void => {
   debugEnabled = true;
   const currentSocket = socket;
   if (currentSocket) {
-    currentSocket.onAny((eventName, ...args) => {
-      console.log('[SOCKET DEBUG] Event received:', eventName, JSON.stringify(args));
-    });
-    console.log('[SOCKET DEBUG] Debug mode enabled - listening to all events');
-  } else {
-    console.warn('[SOCKET DEBUG] Cannot enable debug - socket is null');
+    currentSocket.onAny(() => {});
   }
 };
 
-// Helper to check socket state
-export const debugSocketState = (): void => {
-  const currentSocket = socket;
-  console.log('[SOCKET STATE] Socket exists:', !!currentSocket);
-  if (currentSocket) {
-    console.log('[SOCKET STATE] Connected:', currentSocket.connected);
-    console.log('[SOCKET STATE] Socket ID:', currentSocket.id);
-    console.log('[SOCKET STATE] Listeners for audit_log:', currentSocket.listeners('audit_log').length);
-  }
-};
+export const debugSocketState = (): void => {};
 
 /**
  * Join the admin audit logs room for real-time updates
  */
 export const joinAuditLogsRoom = (): void => {
-  console.log('[SOCKET] joinAuditLogsRoom called');
   const currentSocket = socket || initializeSocket();
+  if (!currentSocket) return;
 
-  if (!currentSocket) {
-    console.error('[SOCKET] Cannot join audit logs room - no socket');
-    return;
-  }
+  const emitJoin = () => currentSocket.emit('join_audit_logs');
+  if (currentSocket.connected) emitJoin();
 
-  console.log('[SOCKET] Socket state - connected:', currentSocket.connected, 'id:', currentSocket.id);
-
-  // Function to emit join event
-  const emitJoin = () => {
-    console.log('[SOCKET] Emitting join_audit_logs, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
-    currentSocket.emit('join_audit_logs');
-    console.log('[SOCKET] Emitted join_audit_logs event');
-  };
-
-  // If connected, emit immediately
-  if (currentSocket.connected) {
-    console.log('[SOCKET] Socket already connected, joining room immediately');
-    emitJoin();
-  } else {
-    console.log('[SOCKET] Socket not connected, will join when connected');
-  }
-
-  // Remove any existing handler before adding new one
   if (auditLogsRoomJoinHandler) {
     currentSocket.off('connect', auditLogsRoomJoinHandler);
   }
-
-  // Create persistent handler for reconnections
-  auditLogsRoomJoinHandler = () => {
-    console.log('[SOCKET] Connect event fired, emitting join_audit_logs');
-    currentSocket.emit('join_audit_logs');
-  };
-
-  // Always register connect handler for reconnections
+  auditLogsRoomJoinHandler = () => currentSocket.emit('join_audit_logs');
   currentSocket.on('connect', auditLogsRoomJoinHandler);
 
-  // If not connected, start connection
-  if (!currentSocket.connected) {
-    currentSocket.connect();
-    console.log('[SOCKET] Called connect()');
-  }
+  if (!currentSocket.connected) currentSocket.connect();
 };
 
 /**
  * Leave the admin audit logs room
  */
 export const leaveAuditLogsRoom = (): void => {
-  console.log('[SOCKET] leaveAuditLogsRoom called');
   const currentSocket = socket;
+  if (!currentSocket) return;
 
-  if (currentSocket) {
-    // Remove the connect listener
-    if (auditLogsRoomJoinHandler) {
-      currentSocket.off('connect', auditLogsRoomJoinHandler);
-      auditLogsRoomJoinHandler = null;
-    }
-
-    // Leave the room if connected
-    if (currentSocket.connected) {
-      currentSocket.emit('leave_audit_logs');
-      console.log('[SOCKET] Left audit logs room');
-    }
+  if (auditLogsRoomJoinHandler) {
+    currentSocket.off('connect', auditLogsRoomJoinHandler);
+    auditLogsRoomJoinHandler = null;
   }
+  if (currentSocket.connected) currentSocket.emit('leave_audit_logs');
 };
 
 /**
  * Listen for incoming audit logs
  */
 export const onAuditLog = (callback: (data: SocketAuditLog) => void): void => {
-  console.log('[SOCKET] onAuditLog called');
   const currentSocket = socket || initializeSocket();
+  if (!currentSocket) return;
 
-  if (!currentSocket) {
-    console.error('[SOCKET] Cannot register audit log listener - no socket');
-    return;
-  }
-
-  // Create the handler function - simple wrapper
   const auditLogHandler = (data: SocketAuditLog) => {
-    console.log('[SOCKET] >>> RECEIVED AUDIT LOG:', data);
-    console.log('[SOCKET] Calling callback with audit log');
     try {
       callback(data);
-      console.log('[SOCKET] Callback executed successfully');
-    } catch (err) {
-      console.error('[SOCKET] Error in audit log callback:', err);
+    } catch {
+      // ignore callback errors
     }
   };
-
-  console.log('[SOCKET] Registering audit_log listener, socket connected:', currentSocket.connected);
-
-  // Register the listener - use 'on' not 'once'
   currentSocket.on('audit_log', auditLogHandler);
-
-  // Store for cleanup
   auditLogHandlers.set(callback, { wrapper: auditLogHandler });
-
-  console.log('[SOCKET] Audit log listener registered, total listeners:', currentSocket.listeners('audit_log').length);
 };
 
 /**
  * Remove audit log listener
  */
 export const offAuditLog = (callback: (data: SocketAuditLog) => void): void => {
-  console.log('[SOCKET] offAuditLog called');
   const currentSocket = socket;
+  if (!currentSocket) return;
 
-  if (currentSocket) {
-    const handlers = auditLogHandlers.get(callback);
-    if (handlers) {
-      currentSocket.off('audit_log', handlers.wrapper);
-      auditLogHandlers.delete(callback);
-      console.log('[SOCKET] Audit log listener removed, remaining listeners:', currentSocket.listeners('audit_log').length);
-    }
+  const handlers = auditLogHandlers.get(callback);
+  if (handlers) {
+    currentSocket.off('audit_log', handlers.wrapper);
+    auditLogHandlers.delete(callback);
   }
 };
 
@@ -820,51 +654,31 @@ const disputeHandlers = new Map<
  * Listen for incoming dispute events
  */
 export const onDispute = (callback: (data: SocketDisputeEvent) => void): void => {
-  console.log('[SOCKET] onDispute called');
   const currentSocket = socket || initializeSocket();
+  if (!currentSocket) return;
 
-  if (!currentSocket) {
-    console.error('[SOCKET] Cannot register dispute listener - no socket');
-    return;
-  }
-
-  // Create the handler function
   const disputeHandler = (data: SocketDisputeEvent) => {
-    console.log('[SOCKET] >>> RECEIVED DISPUTE:', data);
-    console.log('[SOCKET] Calling callback with dispute');
     try {
       callback(data);
-      console.log('[SOCKET] Callback executed successfully');
-    } catch (err) {
-      console.error('[SOCKET] Error in dispute callback:', err);
+    } catch {
+      // ignore callback errors
     }
   };
-
-  console.log('[SOCKET] Registering dispute listener, socket connected:', currentSocket.connected);
-
-  // Register the listener
   currentSocket.on('dispute', disputeHandler);
-
-  // Store for cleanup
   disputeHandlers.set(callback, { wrapper: disputeHandler });
-
-  console.log('[SOCKET] Dispute listener registered, total listeners:', currentSocket.listeners('dispute').length);
 };
 
 /**
  * Remove dispute listener
  */
 export const offDispute = (callback: (data: SocketDisputeEvent) => void): void => {
-  console.log('[SOCKET] offDispute called');
   const currentSocket = socket;
+  if (!currentSocket) return;
 
-  if (currentSocket) {
-    const handlers = disputeHandlers.get(callback);
-    if (handlers) {
-      currentSocket.off('dispute', handlers.wrapper);
-      disputeHandlers.delete(callback);
-      console.log('[SOCKET] Dispute listener removed, remaining listeners:', currentSocket.listeners('dispute').length);
-    }
+  const handlers = disputeHandlers.get(callback);
+  if (handlers) {
+    currentSocket.off('dispute', handlers.wrapper);
+    disputeHandlers.delete(callback);
   }
 };
 
@@ -879,70 +693,31 @@ let adminDisputesRoomJoinHandler: (() => void) | null = null;
  * Join the admin disputes room for real-time updates
  */
 export const joinAdminDisputesRoom = (): void => {
-  console.log('[SOCKET] joinAdminDisputesRoom called');
   const currentSocket = socket || initializeSocket();
+  if (!currentSocket) return;
 
-  if (!currentSocket) {
-    console.error('[SOCKET] Cannot join admin disputes room - no socket');
-    return;
-  }
+  const emitJoin = () => currentSocket.emit('join_admin_disputes');
+  if (currentSocket.connected) emitJoin();
 
-  console.log('[SOCKET] Socket state - connected:', currentSocket.connected, 'id:', currentSocket.id);
-
-  // Function to emit join event
-  const emitJoin = () => {
-    console.log('[SOCKET] Emitting join_admin_disputes, socket id:', currentSocket.id, 'connected:', currentSocket.connected);
-    currentSocket.emit('join_admin_disputes');
-    console.log('[SOCKET] Emitted join_admin_disputes event');
-  };
-
-  // If connected, emit immediately
-  if (currentSocket.connected) {
-    console.log('[SOCKET] Socket already connected, joining admin disputes room immediately');
-    emitJoin();
-  } else {
-    console.log('[SOCKET] Socket not connected, will join when connected');
-  }
-
-  // Remove any existing handler before adding new one
   if (adminDisputesRoomJoinHandler) {
     currentSocket.off('connect', adminDisputesRoomJoinHandler);
   }
-
-  // Create persistent handler for reconnections
-  adminDisputesRoomJoinHandler = () => {
-    console.log('[SOCKET] Connect event fired, emitting join_admin_disputes');
-    currentSocket.emit('join_admin_disputes');
-  };
-
-  // Always register connect handler for reconnections
+  adminDisputesRoomJoinHandler = () => currentSocket.emit('join_admin_disputes');
   currentSocket.on('connect', adminDisputesRoomJoinHandler);
 
-  // If not connected, start connection
-  if (!currentSocket.connected) {
-    currentSocket.connect();
-    console.log('[SOCKET] Called connect()');
-  }
+  if (!currentSocket.connected) currentSocket.connect();
 };
 
 /**
  * Leave the admin disputes room
  */
 export const leaveAdminDisputesRoom = (): void => {
-  console.log('[SOCKET] leaveAdminDisputesRoom called');
   const currentSocket = socket;
+  if (!currentSocket) return;
 
-  if (currentSocket) {
-    // Remove the connect listener
-    if (adminDisputesRoomJoinHandler) {
-      currentSocket.off('connect', adminDisputesRoomJoinHandler);
-      adminDisputesRoomJoinHandler = null;
-    }
-
-    // Leave the room if connected
-    if (currentSocket.connected) {
-      currentSocket.emit('leave_admin_disputes');
-      console.log('[SOCKET] Left admin disputes room');
-    }
+  if (adminDisputesRoomJoinHandler) {
+    currentSocket.off('connect', adminDisputesRoomJoinHandler);
+    adminDisputesRoomJoinHandler = null;
   }
+  if (currentSocket.connected) currentSocket.emit('leave_admin_disputes');
 };

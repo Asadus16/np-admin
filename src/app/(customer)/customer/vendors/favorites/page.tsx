@@ -13,6 +13,7 @@ interface Vendor {
   logo: string;
   category: { id: string; name: string } | null;
   service_areas: { id: string; name: string }[];
+  exclusive_in_areas?: { id: string; name: string }[];
   landline: string | null;
   rating: number;
   reviews_count: number;
@@ -184,6 +185,13 @@ export default function FavoriteVendorsPage() {
                   )}
                 </div>
 
+                {vendor.exclusive_in_areas && vendor.exclusive_in_areas.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                      Exclusive in: {vendor.exclusive_in_areas.map((a) => a.name).join(", ")}
+                    </span>
+                  </div>
+                )}
                 {vendor.service_areas.length > 0 && (
                   <div className="flex items-center text-gray-500">
                     <MapPin className="h-4 w-4 mr-1" />

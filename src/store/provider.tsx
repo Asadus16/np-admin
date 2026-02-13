@@ -15,10 +15,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      console.log('[StoreProvider] Dispatching initializeAuth');
-      store.dispatch(initializeAuth()).then((result) => {
-        console.log('[StoreProvider] initializeAuth completed:', result.payload);
-      });
+      store.dispatch(initializeAuth());
     }
   }, []);
 
