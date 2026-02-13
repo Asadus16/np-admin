@@ -71,7 +71,12 @@ export async function createExclusivePlanPaymentIntent(
   if (!response.ok) {
     throw new Error(data.message || 'Failed to create payment');
   }
-  return data;
+  // Support both { client_secret, payment_intent_id } and { data: { client_secret, payment_intent_id } }
+  const payload = data.data && typeof data.data === 'object' ? data.data : data;
+  return {
+    client_secret: payload.client_secret ?? '',
+    payment_intent_id: payload.payment_intent_id ?? '',
+  };
 }
 
 export async function confirmExclusivePlanPayment(

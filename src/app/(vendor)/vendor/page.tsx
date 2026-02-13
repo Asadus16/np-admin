@@ -38,6 +38,16 @@ export default function VendorDashboard() {
   const [paymentClientSecret, setPaymentClientSecret] = useState<string | null>(null);
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [loadingPaymentPlanId, setLoadingPaymentPlanId] = useState<string | number | null>(null);
+  const [returnUrl, setReturnUrl] = useState<string>("");
+
+  useEffect(() => {
+    setReturnUrl(
+      typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?exclusive_plan_paid=1`
+        : "/vendor?exclusive_plan_paid=1"
+    );
+  }, []);
 
   const fetchPlans = async () => {
     if (!token) return;
@@ -90,12 +100,25 @@ export default function VendorDashboard() {
     if (!token) return;
     setPaymentError(null);
     setPurchasingPlan(plan);
+    setLoadingPaymentPlanId(plan.id);
     try {
       const res = await createExclusivePlanPaymentIntent(plan.id, token);
-      setPaymentClientSecret(res.client_secret);
+      console.log(res,'res');
+      const secret =
+        typeof res.client_secret === "string" && res.client_secret.trim()
+          ? res.client_secret.trim()
+          : null;
+      if (!secret) {
+        setPaymentError("Payment could not be started: missing client secret from server.");
+        setPurchasingPlan(null);
+        return;
+      }
+      setPaymentClientSecret(secret);
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "Failed to start payment");
       setPurchasingPlan(null);
+    } finally {
+      setLoadingPaymentPlanId(null);
     }
   };
 
@@ -421,10 +444,17 @@ export default function VendorDashboard() {
                     <button
                       type="button"
                       onClick={() => handlePurchaseClick(plan)}
-                      disabled={!!purchasingPlan}
-                      className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50"
+                      disabled={!!purchasingPlan || loadingPaymentPlanId !== null}
+                      className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      Purchase
+                      {loadingPaymentPlanId === plan.id ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                          Opening…
+                        </>
+                      ) : (
+                        "Pay"
+                      )}
                     </button>
                   </li>
                 ))}
@@ -459,7 +489,6 @@ export default function VendorDashboard() {
           )}
         </div>
       </div>
-
       {/* Purchase modal */}
       {paymentClientSecret && purchasingPlan && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -472,7 +501,7 @@ export default function VendorDashboard() {
               </p>
               <StripeProvider clientSecret={paymentClientSecret}>
                 <PaymentIntentForm
-                  returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}${typeof window !== "undefined" ? window.location.pathname : "/vendor"}?exclusive_plan_paid=1`}
+                  returnUrl={returnUrl || "/vendor?exclusive_plan_paid=1"}
                   onSuccess={handlePaymentSuccess}
                   onCancel={handlePaymentCancel}
                   isSubmitting={paymentSubmitting}

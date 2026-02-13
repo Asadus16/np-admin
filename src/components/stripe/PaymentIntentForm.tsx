@@ -22,6 +22,12 @@ export default function PaymentIntentForm({
   const stripe = useStripe();
   const elements = useElements();
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const handleLoadError = (event: { elementType?: string; error?: { message?: string } }) => {
+    const msg = event?.error?.message || "Payment form could not load.";
+    setLoadError(msg);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +64,24 @@ export default function PaymentIntentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement options={{ layout: "tabs" }} />
+      {loadError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+          <p className="text-sm text-red-700 font-medium">Payment form error</p>
+          <p className="text-sm text-red-600">{loadError}</p>
+          {loadError.toLowerCase().includes("invalid api key") && (
+            <div className="text-xs text-red-600 bg-red-100/80 rounded p-2 mt-2">
+              <p className="font-medium mt-1">Fix: use the current publishable key from Stripe.</p>
+              <ol className="list-decimal list-inside mt-1 space-y-0.5">
+                <li>Stripe Dashboard → Developers → API keys (Test mode).</li>
+                <li>Under Standard, copy the <strong>Publishable key</strong> (pk_test_…).</li>
+                <li>In backend <code className="bg-red-200/60 px-0.5 rounded">.env</code>, set <code className="bg-red-200/60 px-0.5 rounded">STRIPE_KEY</code>= that value (same account as <code className="bg-red-200/60 px-0.5 rounded">STRIPE_SECRET</code>).</li>
+                <li>Run <code className="bg-red-200/60 px-0.5 rounded">php artisan config:clear</code>, restart Laravel, then refresh and click Pay again.</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      )}
+      <PaymentElement options={{ layout: "tabs" }} onLoadError={handleLoadError} />
 
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">

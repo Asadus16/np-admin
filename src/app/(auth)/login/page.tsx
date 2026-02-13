@@ -87,32 +87,22 @@ export default function LoginPage() {
     try {
       const user = await login({ email, password });
       const redirectPath = getRedirectPathForUser(user);
-      console.log("Login successful, redirecting to:", redirectPath, "User:", user);
       router.push(redirectPath);
-    } catch (error) {
-      console.error("Login error:", error);
-      const apiError = error as ApiError;
-      if (apiError && typeof apiError === 'object' && 'message' in apiError) {
-        if (apiError.status === 401) {
-          setGeneralError("Invalid email or password");
-        } else if (apiError.status === 403) {
-          // Show the specific message from backend (e.g., company not approved)
-          setGeneralError(apiError.message);
-        } else if (apiError.errors) {
-          if (apiError.errors.email) {
-            setEmailError(apiError.errors.email[0]);
-          }
-          if (apiError.errors.password) {
-            setPasswordError(apiError.errors.password[0]);
-          }
-          if (!apiError.errors.email && !apiError.errors.password) {
-            setGeneralError(apiError.message);
-          }
-        } else {
-          setGeneralError(apiError.message);
-        }
-      } else if (error instanceof Error) {
-        setGeneralError(error.message);
+    } catch (error: unknown) {
+      const err = error as ApiError & { status?: number };
+      const message = typeof err?.message === "string" ? err.message : (error instanceof Error ? error.message : null);
+      const status = typeof err?.status === "number" ? err.status : undefined;
+      const errors = err?.errors;
+      if (status === 401) {
+        setGeneralError("Invalid email or password");
+      } else if (status === 403 && message) {
+        setGeneralError(message);
+      } else if (errors) {
+        if (errors.email) setEmailError(Array.isArray(errors.email) ? errors.email[0] : String(errors.email));
+        if (errors.password) setPasswordError(Array.isArray(errors.password) ? errors.password[0] : String(errors.password));
+        if (!errors.email && !errors.password && message) setGeneralError(message);
+      } else if (message) {
+        setGeneralError(message);
       } else {
         setGeneralError("Login failed. Please try again.");
       }
@@ -146,8 +136,6 @@ export default function LoginPage() {
       setCountdown(60);
       setGeneralError("");
     } catch (error) {
-      console.error("Send OTP error:", error);
-      
       // Check for Firebase billing error
       if (error instanceof Error && error.message.includes('billing-not-enabled')) {
         setGeneralError("Phone authentication is currently unavailable. Please contact support or use email login.");
@@ -187,10 +175,8 @@ export default function LoginPage() {
       const formattedPhone = formatPhoneNumber(phoneNumber);
       const user = await verifyPhoneOTP(confirmationResult, otp, formattedPhone);
       const redirectPath = getRedirectPathForUser(user);
-      console.log("Phone login successful, redirecting to:", redirectPath, "User:", user);
       router.push(redirectPath);
     } catch (error) {
-      console.error("Verify OTP error:", error);
       const apiError = error as ApiError;
       if (apiError && typeof apiError === 'object' && 'message' in apiError) {
         if (apiError.status === 403) {
@@ -226,8 +212,6 @@ export default function LoginPage() {
       setCountdown(60);
       setGeneralError("");
     } catch (error) {
-      console.error("Resend OTP error:", error);
-      
       // Check for Firebase billing error
       if (error instanceof Error && error.message.includes('billing-not-enabled')) {
         setGeneralError("Phone authentication is currently unavailable. Please contact support or use email login.");

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   Star,
@@ -15,6 +16,10 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
+import { getPublicServiceAreas } from "@/lib/serviceArea";
+import { getCustomerCategories } from "@/lib/customerVendor";
+import type { ServiceArea } from "@/types/serviceArea";
+import type { CustomerCategory } from "@/types/order";
 
 interface Vendor {
   id: string;
@@ -23,6 +28,7 @@ interface Vendor {
   logo: string;
   category: { id: string; name: string } | null;
   service_areas: { id: string; name: string }[];
+  exclusive_in_areas?: { id: string; name: string }[];
   landline: string | null;
   is_favorite: boolean;
   rating: number;
@@ -45,19 +51,70 @@ const sortOptions = [
 ];
 
 export default function ExploreVendorsPage() {
+  const searchParams = useSearchParams();
   const { token } = useAuth();
   const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [favoriteLoading, setFavoriteLoading] = useState<string | null>(null);
+  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+  const [serviceAreasLoading, setServiceAreasLoading] = useState(true);
+  const [selectedServiceAreaId, setSelectedServiceAreaId] = useState("");
+  const [categories, setCategories] = useState<CustomerCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getPublicServiceAreas(1)
+      .then((res) => {
+        if (!cancelled && Array.isArray(res?.data)) {
+          setServiceAreas(res.data);
+          const fromUrl = searchParams.get("service_area");
+          if (fromUrl) setSelectedServiceAreaId(fromUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setServiceAreas([]);
+      })
+      .finally(() => {
+        if (!cancelled) setServiceAreasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCustomerCategories()
+      .then((res) => {
+        if (!cancelled && Array.isArray(res?.data)) {
+          setCategories(res.data);
+          const fromUrl = searchParams.get("category");
+          if (fromUrl) setSelectedCategoryId(fromUrl);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCategoriesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const fetchVendors = useCallback(async () => {
-    if (!token) return;
+    if (!token || !selectedServiceAreaId) return;
 
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
+      params.append("service_area_id", selectedServiceAreaId);
+      if (selectedCategoryId) params.append("category", selectedCategoryId);
       if (searchQuery) params.append("search", searchQuery);
       params.append("sort", sortBy);
 
@@ -66,17 +123,21 @@ export default function ExploreVendorsPage() {
         token
       );
       setVendors(response.data);
-    } catch (err) {
-      console.error("Failed to fetch vendors:", err);
+    } catch {
+      setVendors([]);
     } finally {
       setIsLoading(false);
     }
-  }, [token, searchQuery, sortBy]);
+  }, [token, selectedServiceAreaId, selectedCategoryId, searchQuery, sortBy]);
 
   useEffect(() => {
+    if (!selectedServiceAreaId) {
+      setVendors([]);
+      return;
+    }
     const debounce = setTimeout(fetchVendors, 300);
     return () => clearTimeout(debounce);
-  }, [fetchVendors]);
+  }, [selectedServiceAreaId, selectedCategoryId, fetchVendors]);
 
   const toggleFavorite = async (vendorId: string, isFavorite: boolean) => {
     if (!token || favoriteLoading) return;
@@ -120,43 +181,100 @@ export default function ExploreVendorsPage() {
         </Link>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search vendors, services..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-          />
-        </div>
-        <div className="relative">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="appearance-none pl-4 pr-10 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
+          <div className="w-full sm:w-64 shrink-0">
+            <label htmlFor="service-area" className="block text-sm font-medium text-gray-700 mb-1">
+              Service Area <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="service-area"
+              value={selectedServiceAreaId}
+              onChange={(e) => setSelectedServiceAreaId(e.target.value)}
+              className="w-full appearance-none pl-4 pr-10 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+              disabled={serviceAreasLoading}
+              aria-required
+            >
+              <option value="">Select Service Area</option>
+              {serviceAreas.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {area.name}
+                </option>
+              ))}
+            </select>
+            {serviceAreasLoading && (
+              <p className="text-xs text-gray-500 mt-1">Loading areas…</p>
+            )}
+          </div>
+          <div className="w-full sm:w-64 shrink-0">
+            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <select
+              id="category"
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              className="w-full appearance-none pl-4 pr-10 py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+              disabled={categoriesLoading}
+            >
+              <option value="">All categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            {categoriesLoading && (
+              <p className="text-xs text-gray-500 mt-1">Loading categories…</p>
+            )}
+          </div>
+          <div className="relative flex-1 w-full sm:min-w-0">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search vendors, services..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={!selectedServiceAreaId}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
+            />
+          </div>
+          <div className="relative shrink-0">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              disabled={!selectedServiceAreaId}
+              className="appearance-none pl-4 pr-10 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer disabled:opacity-70"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          </div>
         </div>
       </div>
 
-      {isLoading ? (
+      {!selectedServiceAreaId ? (
+        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-700 font-medium">Select a service area</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Choose a service area above to see vendors available in your area
+          </p>
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </div>
       ) : vendors.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
           <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No vendors found</p>
+          <p className="text-gray-500">No vendors found in this area</p>
           <p className="text-sm text-gray-400 mt-1">
-            Try adjusting your search
+            Try adjusting your search or choose another service area
           </p>
         </div>
       ) : (
@@ -229,6 +347,13 @@ export default function ExploreVendorsPage() {
                     )}
                   </div>
 
+                  {vendor.exclusive_in_areas && vendor.exclusive_in_areas.length > 0 && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                        Exclusive in: {vendor.exclusive_in_areas.map((a) => a.name).join(", ")}
+                      </span>
+                    </div>
+                  )}
                   {vendor.service_areas.length > 0 && (
                     <div className="flex items-center text-gray-500">
                       <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />

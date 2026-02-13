@@ -13,6 +13,7 @@ import {
 import type { Conversation, Message, ChatUser } from "@/types/chat";
 import { useSocket } from "@/hooks/useSocket";
 import { formatConversationTime, formatMessageTime } from "@/lib/timeFormat";
+import { ClientOnlyFormattedTime } from "@/components/chat/ClientOnlyFormattedTime";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import NewConversationModal from "@/components/chat/NewConversationModal";
@@ -283,8 +284,12 @@ export default function MessagesInbox({
                           {getDisplayName(otherUser)}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {conv.latest_message &&
-                            formatConversationTime(conv.latest_message.created_at)}
+                          {conv.latest_message && (
+                            <ClientOnlyFormattedTime
+                              dateString={conv.latest_message.created_at}
+                              formatter={formatConversationTime}
+                            />
+                          )}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 truncate">
@@ -343,7 +348,12 @@ export default function MessagesInbox({
                             isOwnMessage(msg) ? "text-gray-400" : "text-gray-500"
                           }`}
                         >
-                          <span className="text-xs">{formatMessageTime(msg.created_at)}</span>
+                          <span className="text-xs">
+                            <ClientOnlyFormattedTime
+                              dateString={msg.created_at}
+                              formatter={formatMessageTime}
+                            />
+                          </span>
                         </div>
                       </div>
                     </div>
